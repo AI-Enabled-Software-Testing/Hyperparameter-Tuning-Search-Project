@@ -1,0 +1,5 @@
+# Development dependencies
+# Add packages as needed, for example:
+# pytest
+# black
+# mypy
