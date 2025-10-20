@@ -439,7 +439,10 @@
         elements.controlsForm.addEventListener('change', (e) => {
             const { name, value, type } = e.target;
             if (type !== 'radio') return;
-            state.page = 1; 
+
+            if (name !== 'type') {
+                state.page = 1;
+            }
             if (state[name] !== undefined) {
                 state[name] = value;
                 updateView();
