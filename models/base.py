@@ -7,7 +7,7 @@ that will be used in hyperparameter optimization experiments.
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import numpy as np
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score
 from sklearn.model_selection import cross_val_score
 
 
