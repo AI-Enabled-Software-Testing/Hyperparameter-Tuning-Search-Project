@@ -148,7 +148,8 @@ async def get_dataset_info(
     dataset_type: Literal["base", "processed"],
     dataset_name: Literal["mnist", "cifar10"],
 ):
-    assert dataset_type in ["base", "processed"], "Invalid dataset type"
+    if dataset_type not in ["base", "processed"]:
+        raise HTTPException(status_code=400, detail="Invalid dataset type")
     return (
         base_datasets_info[dataset_name]
         if dataset_type == "base"
