@@ -62,7 +62,8 @@ def load_dataset_info(dataset_path: Path) -> Dict[str, Any]:
         image_col = "image"
     elif "img" in ds.features:
         image_col = "img"
-    assert image_col is not None, "No image column found"
+    if image_col is None:
+        raise ValueError("No image column found")
 
     info["dimensions"] = list(pil_to_np(ds[0][image_col]).shape)
 
