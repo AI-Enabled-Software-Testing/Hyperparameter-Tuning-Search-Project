@@ -1,29 +1,17 @@
 [project]
 name = "hyperparameter-tuning-search-project"
 version = "0.1.0"
-description = "A comprehensive framework for comparing metaheuristic algorithms in hyperparameter optimization of machine learning models"
-authors = [
-    {name = "Fernando and Kelvin", email = "your-email@example.com"}
-]
-keywords = ["machine-learning", "hyperparameter-optimization", "metaheuristics", "genetic-algorithm", "simulated-annealing", "particle-swarm-optimization"]
+description = "hyperparameter optimization with metaheuristic algorithms"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    # Minimal core dependencies for the basic project structure
+    "datasets>=4.2.0",
+    "fastapi>=0.119.1",
+    "scikit-image>=0.25.2",
+    "uvicorn>=0.38.0",
 ]
 
-[project.optional-dependencies]
-# Optional dependencies can be added as needed
-# Example: dev = ["pytest", "black", "mypy"]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
-
-# Tool configurations can be added here as needed
-# [tool.pytest.ini_options]
-# [tool.black] 
-# [tool.mypy]
+[dependency-groups]
+dev = [
+    "ruff>=0.14.1",
+]
