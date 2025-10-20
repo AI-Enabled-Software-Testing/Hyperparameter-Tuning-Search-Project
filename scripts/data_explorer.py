@@ -110,7 +110,8 @@ async def lifespan(_app: FastAPI):
             base_datasets_info[dataset_dir.name] = load_dataset_info(dataset_dir)
 
     processed_root = repo_root / ".cache" / "processed_datasets"
-    assert processed_root.exists(), "Processed datasets not found"
+    if not processed_root.exists():
+        raise FileNotFoundError("Processed datasets not found")
     for dataset_dir in processed_root.iterdir():
         if dataset_dir.is_dir():
             processed_datasets_info[dataset_dir.name] = load_dataset_info(dataset_dir)
