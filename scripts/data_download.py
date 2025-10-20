@@ -22,7 +22,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    datasets_root = repo_root / ".cache" / "datasets"
+    datasets_root = repo_root / ".cache" / "base_datasets"
 
     # CIFAR-10
     cifar10_dir = datasets_root / "cifar10"
