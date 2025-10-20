@@ -49,12 +49,12 @@ def load_dataset_info(dataset_path: Path) -> Dict[str, Any]:
         "name": dataset_path.name,
         "splits": list(ds_dict.keys()),
         "total_samples": sum(len(ds) for ds in ds_dict.values()),
-        "features": {}
+        "features": {},
     }
-    
+
     first_split_name = list(ds_dict.keys())[0]
     ds = ds_dict[first_split_name]
-    
+
     info["features"] = {name: str(feature) for name, feature in ds.features.items()}
 
     image_col = None
@@ -76,18 +76,22 @@ def load_dataset_info(dataset_path: Path) -> Dict[str, Any]:
 
 def image_to_base64(image_data) -> str:
     arr = pil_to_np(image_data)
-    
+
     if arr.ndim == 2:
         if arr.dtype != np.uint8:
-            arr = ((arr - arr.min()) / (arr.max() - arr.min() + 1e-8) * 255).astype(np.uint8)
-        pil_image = Image.fromarray(arr, mode='L')
+            arr = ((arr - arr.min()) / (arr.max() - arr.min() + 1e-8) * 255).astype(
+                np.uint8
+            )
+        pil_image = Image.fromarray(arr, mode="L")
     elif arr.ndim == 3 and arr.shape[2] == 3:
         if arr.dtype != np.uint8:
-            arr = ((arr - arr.min()) / (arr.max() - arr.min() + 1e-8) * 255).astype(np.uint8)
-        pil_image = Image.fromarray(arr, mode='RGB')
-    
+            arr = ((arr - arr.min()) / (arr.max() - arr.min() + 1e-8) * 255).astype(
+                np.uint8
+            )
+        pil_image = Image.fromarray(arr, mode="RGB")
+
     buffer = io.BytesIO()
-    pil_image.save(buffer, format='PNG')
+    pil_image.save(buffer, format="PNG")
     img_str = base64.b64encode(buffer.getvalue()).decode()
     return f"data:image/png;base64,{img_str}"
 
@@ -96,94 +100,107 @@ def image_to_base64(image_data) -> str:
 async def lifespan(_app: FastAPI):
     """Load dataset information on startup and cleanup on shutdown."""
     global base_datasets_info, processed_datasets_info
-    
+
     repo_root = Path(__file__).resolve().parents[1]
-    
+
     base_root = repo_root / ".cache" / "base_datasets"
     assert base_root.exists(), "Base datasets not found"
     for dataset_dir in base_root.iterdir():
         if dataset_dir.is_dir():
             base_datasets_info[dataset_dir.name] = load_dataset_info(dataset_dir)
-    
-    
+
     processed_root = repo_root / ".cache" / "processed_datasets"
     assert processed_root.exists(), "Processed datasets not found"
     for dataset_dir in processed_root.iterdir():
         if dataset_dir.is_dir():
             processed_datasets_info[dataset_dir.name] = load_dataset_info(dataset_dir)
-    
+
     yield
-    
+
     base_datasets_info.clear()
     processed_datasets_info.clear()
 
 
-app = FastAPI(title="Dataset Explorer", description="Explore base and processed datasets", lifespan=lifespan)
+app = FastAPI(
+    title="Dataset Explorer",
+    description="Explore base and processed datasets",
+    lifespan=lifespan,
+)
 
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
     ui_path = Path(__file__).resolve().parents[1] / "web" / "ds_explorer.html"
-    with open(ui_path, 'r', encoding='utf-8') as f:
+    with open(ui_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
+
 
 @app.get("/api/datasets")
 async def list_datasets():
     return {
         "base_datasets": base_datasets_info,
-        "processed_datasets": processed_datasets_info
+        "processed_datasets": processed_datasets_info,
     }
 
 
 @app.get("/api/datasets/{dataset_type}/{dataset_name}")
-async def get_dataset_info(dataset_type: Literal["base", "processed"], dataset_name: Literal["mnist", "cifar10"]):
+async def get_dataset_info(
+    dataset_type: Literal["base", "processed"],
+    dataset_name: Literal["mnist", "cifar10"],
+):
     assert dataset_type in ["base", "processed"], "Invalid dataset type"
-    return base_datasets_info[dataset_name] if dataset_type == "base" else processed_datasets_info[dataset_name]
+    return (
+        base_datasets_info[dataset_name]
+        if dataset_type == "base"
+        else processed_datasets_info[dataset_name]
+    )
 
 
 @app.get("/api/datasets/{dataset_type}/{dataset_name}/{split}")
 async def get_dataset_samples(
-    dataset_type: Literal["base", "processed"], 
-    dataset_name: Literal["mnist", "cifar10"], 
+    dataset_type: Literal["base", "processed"],
+    dataset_name: Literal["mnist", "cifar10"],
     split: Literal["train", "test"],
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100)
+    page_size: int = Query(10, ge=1, le=100),
 ):
     assert dataset_type in ["base", "processed"], "Invalid dataset type"
-    assert dataset_name in base_datasets_info or dataset_name in processed_datasets_info, f"Dataset {dataset_name} in {dataset_type} not found"
+    assert (
+        dataset_name in base_datasets_info or dataset_name in processed_datasets_info
+    ), f"Dataset {dataset_name} in {dataset_type} not found"
 
     repo_root = Path(__file__).resolve().parents[1]
     dataset_path = repo_root / ".cache" / f"{dataset_type}_datasets" / dataset_name
-    
+
     ds_dict: DatasetDict = load_from_disk(str(dataset_path))
-    
+
     if split not in ds_dict:
         raise HTTPException(status_code=404, detail="Split not found")
-    
+
     ds: Dataset = ds_dict[split]
-    
+
     image_col = None
     if "img" in ds.features:
         ds = ds.rename_column("img", "image")
         image_col = "image"
     elif "image" in ds.features:
         image_col = "image"
-    
+
     total_samples = len(ds)
     start_idx = (page - 1) * page_size
     end_idx = min(start_idx + page_size, total_samples)
-    
+
     samples = []
     for i in range(start_idx, end_idx):
         sample = ds[i]
         sample = make_serializable(sample)
-        
+
         if image_col and image_col in sample:
             sample["image_base64"] = image_to_base64(sample[image_col])
             del sample[image_col]
-        
+
         samples.append(sample)
-    
+
     return {
         "samples": samples,
         "pagination": {
@@ -192,8 +209,8 @@ async def get_dataset_samples(
             "total_samples": total_samples,
             "total_pages": (total_samples + page_size - 1) // page_size,
             "has_next": end_idx < total_samples,
-            "has_prev": page > 1
-        }
+            "has_prev": page > 1,
+        },
     }
 
 
@@ -202,13 +219,8 @@ def main():
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     args = parser.parse_args()
-    
-    uvicorn.run(
-        "data_explorer:app",
-        host=args.host,
-        port=args.port,
-        log_level="info"
-    )
+
+    uvicorn.run("data_explorer:app", host=args.host, port=args.port, log_level="info")
 
 
 if __name__ == "__main__":

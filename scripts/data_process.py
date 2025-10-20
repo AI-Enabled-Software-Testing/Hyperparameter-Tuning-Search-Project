@@ -10,6 +10,7 @@ from skimage.color import rgb2gray
 from skimage.transform import resize
 from skimage.util import img_as_float
 
+
 def build_transform_pipeline():
     def transform_one(image) -> np.ndarray:
         arr = np.asarray(image)
@@ -24,7 +25,9 @@ def build_transform_pipeline():
     return transform_batch
 
 
-def process_dataset(src_dir: Path, dst_dir: Path, transform_batch: Callable[[List], List]) -> None:
+def process_dataset(
+    src_dir: Path, dst_dir: Path, transform_batch: Callable[[List], List]
+) -> None:
     ds_dict: DatasetDict = load_from_disk(str(src_dir))
     dst_dir.mkdir(parents=True, exist_ok=True)
 
@@ -32,16 +35,16 @@ def process_dataset(src_dir: Path, dst_dir: Path, transform_batch: Callable[[Lis
     # we standardize to just 'image'
     for split, ds in ds_dict.items():
         ds: Dataset = ds  # type annotation for ds
-        if "img" in ds.features: 
+        if "img" in ds.features:
             ds = ds.rename_column("img", "image")
         ds_dict[split] = ds
 
     for split, ds in ds_dict.items():
         ds_dict[split] = ds.map(
-            lambda batch: {"image": transform_batch(batch["image"]) }, 
+            lambda batch: {"image": transform_batch(batch["image"])},
             batched=True,
-            num_proc=4
-            )
+            num_proc=4,
+        )
 
     ds_dict.save_to_disk(str(dst_dir))
 
@@ -49,10 +52,11 @@ def process_dataset(src_dir: Path, dst_dir: Path, transform_batch: Callable[[Lis
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--force", action="store_true", help="Overwrite existing postprocessed datasets if present"
+        "--force",
+        action="store_true",
+        help="Overwrite existing postprocessed datasets if present",
     )
     args = parser.parse_args()
-
 
     repo_root = Path(__file__).resolve().parents[1]
     base_root = repo_root / ".cache" / "base_datasets"
@@ -73,6 +77,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
