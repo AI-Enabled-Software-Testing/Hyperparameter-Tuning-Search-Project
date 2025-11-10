@@ -163,7 +163,7 @@
             border-radius: 4px;
             background: #f1f1f1;
             display: block;
-            image-rendering: pixelated; /* Crisp pixels for datasets like MNIST */
+            image-rendering: pixelated; /* Crisp pixels for small images */
         }
         
         .sample-features {
@@ -242,9 +242,7 @@
                 <fieldset>
                     <legend>Dataset</legend>
                     <div class="toggle-group">
-                        <input type="radio" id="dataset-mnist" name="dataset" value="mnist">
-                        <label for="dataset-mnist">MNIST</label>
-                        <input type="radio" id="dataset-cifar10" name="dataset" value="cifar10">
+                        <input type="radio" id="dataset-cifar10" name="dataset" value="cifar10" checked>
                         <label for="dataset-cifar10">CIFAR-10</label>
                     </div>
                 </fieldset>
@@ -291,7 +289,7 @@
 
         const state = {
             type: 'base',
-            dataset: 'mnist',
+            dataset: 'cifar10',
             split: 'train',
             page: 1,
             pageSize: 9 
@@ -385,8 +383,13 @@
 
                 let featuresHtml = '<div class="sample-features">';
                 for (const [key, value] of Object.entries(sample)) {
-                    if (key !== 'image_base64') {
-                        featuresHtml += `<p><strong>${key}:</strong> ${JSON.stringify(value)}</p>`;
+                    if (key !== 'image_base64' && key !== 'label_name') {
+                        let displayValue = JSON.stringify(value);
+                        // If this is the label field and we have a label_name, show both
+                        if (key === 'label' && sample.label_name) {
+                            displayValue = `${value} (${sample.label_name})`;
+                        }
+                        featuresHtml += `<p><strong>${key}:</strong> ${displayValue}</p>`;
                     }
                 }
                 featuresHtml += '</div>';
