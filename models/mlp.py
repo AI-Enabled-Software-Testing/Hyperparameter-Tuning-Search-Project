@@ -14,6 +14,6 @@ class MLPModel(BaseModel):
             'hidden_layer_sizes': [(50,), (100,), (50, 50), (100, 50), (100, 100)],
             'activation': ['relu', 'tanh', 'logistic'],
             'solver': ['adam', 'sgd', 'lbfgs'],
-            'alpha': [0.0001, 0.001, 0.01, 0.1],
+            'alpha': list(range(10**i for i in range(-4, 0))),
             'learning_rate': ['constant', 'invscaling', 'adaptive']
         }

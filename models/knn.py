@@ -1,6 +1,6 @@
 from models.base import BaseModel
 from sklearn.neighbors import KNeighborsClassifier
-from typing import Dict, Any
+from typing import Dict
 
 class KNNModel(BaseModel):
     """K-Nearest Neighbors classifier wrapper."""
@@ -9,7 +9,7 @@ class KNNModel(BaseModel):
         self.model = KNeighborsClassifier(**params)
         return self.model
     
-    def get_param_space(self) -> Dict[str, Any]:
+    def get_param_space(self) -> Dict[str, list]:
         return {
             'n_neighbors': list(range(3, 16)),
             'weights': ['uniform', 'distance'],
