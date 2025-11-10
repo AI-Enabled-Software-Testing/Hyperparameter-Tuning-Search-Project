@@ -81,4 +81,4 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 2. Run `data_process.py` to process the images in the datasets. 
 3. Run `data_explorer.py` to view details of processed images from different API endpoints. 
    * Note: You may need to use a client such as Postman to launch those API requests. 
-   * Note: Refer to `openapi.yaml` for more detailed descriptions of those endpoints. 
+   * Note: Refer to [`openapi.yaml`](openapi.yaml) for more detailed descriptions of those endpoints. 
