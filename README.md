@@ -33,7 +33,7 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 * **Simulated Annealing**
 * **Swarm Optimization**: Particle Swarm Optimization
 
-### Prerequisites
+## Prerequisites
 - Python 3.9 or higher
 - [uv](https://docs.astral.sh/uv/) package manager (recommended)
 
@@ -72,3 +72,13 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
    ```bash
    pip install -e .
    ```
+
+## Execution Guide
+### Data Preparation
+1. Run `data_download.py` to firstly download the datasets needed. 
+   * Note: Data are stored into the `.cache\` folder which is gitignored.
+   * Note: Should you rerun the script again, and the folder already exists with contents, please run the script with argument `--force` to enable a smooth overwriting behavior. 
+2. Run `data_process.py` to process the images in the datasets. 
+3. Run `data_explorer.py` to view details of processed images from different API endpoints. 
+   * Note: You may need to use a client such as Postman to launch those API requests. 
+   * Note: Refer to `openapi.yaml` for more detailed descriptions of those endpoints. 
