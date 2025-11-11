@@ -124,7 +124,7 @@ class CNNModel(nn.Module, BaseModel):
             'stride': ParamSpace.integer(min_val=1, max_val=3, default=2),
             'padding': ParamSpace.integer(min_val=0, max_val=2, default=1),
             'epochs': ParamSpace.integer(min_val=10, max_val=200, default=100),
-            'learning_rate': ParamSpace.float(min_val=1e-5, max_val=1e-1, default=0.001, log_scale=True),
+            'learning_rate': ParamSpace.float_range(min_val=1e-5, max_val=1e-1, default=0.001, log_scale=True),
             'batch_size': ParamSpace.integer(min_val=16, max_val=128, default=32),
         }
 
