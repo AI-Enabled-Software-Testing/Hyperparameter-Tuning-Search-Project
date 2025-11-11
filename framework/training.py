@@ -1,6 +1,6 @@
 import torch
 from tqdm import tqdm
-from typing import Tuple
+from typing import Any, Tuple
 from pathlib import Path
 from torch.utils.data import DataLoader
 from torch.nn import Module
@@ -82,7 +82,7 @@ def train_epoch(
     criterion: torch.nn.Module,
     optimizer: Optimizer,
     device: torch.device,
-    aim_run: Run,
+    aim_run: Any,
     scheduler: LRScheduler,
     epoch: int = 0,
     grad_clip_norm: float = 1.0
@@ -152,7 +152,7 @@ def validate(
     val_loader: DataLoader,
     criterion: torch.nn.Module,
     device: torch.device,
-    aim_run: Run,
+    aim_run: Any,
     epoch: int = 0
 ) -> Tuple[float, float]:
     """Validates the model and returns the epoch loss and accuracy."""
