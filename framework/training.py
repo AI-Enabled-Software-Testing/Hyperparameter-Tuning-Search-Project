@@ -71,6 +71,8 @@ class EarlyStopping:
             return False
 
 
+
+
 def train_epoch(
     model: Module,
     train_loader: DataLoader,
@@ -129,11 +131,8 @@ def train_epoch(
     # Log parameter and gradient histograms (only every N epochs to reduce CPU overhead)
     if writer is not None and (epoch % 10 == 0 or epoch == 1):  # Log every 10 epochs or first epoch
         for name, param in model.named_parameters():
-            if param.grad is not None:
-                # Log parameter histogram (TensorBoard handles this natively!)
-                writer.add_histogram(f'train/params/{name}', param.data, epoch)
-                # Log gradient histogram
-                writer.add_histogram(f'train/grads/{name}', param.grad.data, epoch)
+            writer.add_histogram(f'train_params/{name}', param.data, epoch)
+            writer.add_histogram(f'train_grads/{name}', param.grad.data, epoch)
 
     return epoch_loss, epoch_acc
 
