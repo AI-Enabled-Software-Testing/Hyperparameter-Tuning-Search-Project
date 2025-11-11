@@ -63,16 +63,22 @@ class CNNModel(nn.Module, BaseModel):
         return x
     
     def train(self, X_train, y_train, weight_decay=0.001, epochs=100, learning_rate=0.001, batch_size=32, optimizer='AdamW', scheduler='OneCycleLR', val_ratio=0.2):
-        """Train the CNN model with PyTorch training loop."""
+        """
+            Train the CNN model with PyTorch training loop.
+            
+            Params:
+                X_train: Training features (must be a numpy array)
+                y_train: Training labels (must be a numpy array)
+        """
         self = self.to(utils.device()) # Move model to device
         # Check if model is instantiated properly
         if not self.is_initialized:
             raise RuntimeError("Model not initialized. Call create_model() first.")
 
         # Log Parameters
-        total_params, trainable_params = count_parameters(self)
-        print(f"Total parameters: {total_params:,}")
-        print(f"Trainable parameters: {trainable_params:,}")
+        self.total_params, self.trainable_params = count_parameters(self)
+        print(f"Total parameters: {self.total_params:,}")
+        print(f"Trainable parameters: {self.trainable_params:,}")
 
         # Break training set into train + val according to ratio
         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=val_ratio)
@@ -162,12 +168,6 @@ class CNNModel(nn.Module, BaseModel):
                 # Return class predictions
                 _, predicted = torch.max(outputs, 1)
                 return predicted.numpy()
-    
-    def set_train_mode(self, mode: bool = True):
-        """Override PyTorch's train method to handle compiled models."""
-        super().train(mode)
-        if self.is_initialized:
-            self.features.train(mode)
     
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
