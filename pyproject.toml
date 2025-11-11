@@ -5,6 +5,7 @@ description = "hyperparameter optimization with metaheuristic algorithms"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aim>=3.29.1",
     "datasets>=4.2.0",
     "fastapi>=0.119.1",
     "scikit-image>=0.25.2",

@@ -189,6 +189,14 @@ async def get_dataset_samples(
     elif "image" in ds.features:
         image_col = "image"
 
+    # Extract class names from ClassLabel feature if available
+    class_names = None
+    if "label" in ds.features:
+        label_feature = ds.features["label"]
+        # Check if it's a ClassLabel with names
+        if hasattr(label_feature, "names") and label_feature.names:
+            class_names = label_feature.names
+
     total_samples = len(ds)
     start_idx = (page - 1) * page_size
     end_idx = min(start_idx + page_size, total_samples)
@@ -201,6 +209,12 @@ async def get_dataset_samples(
         if image_col and image_col in sample:
             sample["image_base64"] = image_to_base64(sample[image_col])
             del sample[image_col]
+
+        # Add class name if available
+        if class_names and "label" in sample:
+            label_idx = int(sample["label"])
+            if 0 <= label_idx < len(class_names):
+                sample["label_name"] = class_names[label_idx]
 
         samples.append(sample)
 
@@ -223,7 +237,8 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     args = parser.parse_args()
 
-    uvicorn.run("data_explorer:app", host=args.host, port=args.port, log_level="info")
+    # Pass app object directly to avoid module path issues
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
 if __name__ == "__main__":
