@@ -15,6 +15,10 @@ from sklearn.model_selection import train_test_split
 
 MODEL_PATH = ".cache/models/cnn_cifar.pth"
 
+# PyTorch Setup
+print(f"Using Device: {utils.device()}")
+print(f"Is CUDA Available: {utils.is_cuda()}")
+
 class CNNModel(nn.Module, BaseModel):   
     def __init__(self, num_classes: int = 10):
         super().__init__()
@@ -62,7 +66,7 @@ class CNNModel(nn.Module, BaseModel):
         x = self.model(x)
         return x
     
-    def train(self, X_train, y_train, weight_decay=0.001, epochs=100, learning_rate=0.001, batch_size=32, optimizer='AdamW', scheduler='OneCycleLR', val_ratio=0.2):
+    def train(self, X_train, y_train, weight_decay=0.001, epochs=100, learning_rate=0.001, batch_size=32, optimizer='AdamW', val_ratio=0.2):
         """
             Train the CNN model with PyTorch training loop.
             
@@ -116,6 +120,8 @@ class CNNModel(nn.Module, BaseModel):
                 optimizer = optim.AdamW(self.parameters(), lr=learning_rate, weight_decay=weight_decay)
             case 'Adam':
                 optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+            case 'SGD':
+                optimizer = optim.SGD(self.parameters(), lr=learning_rate, momentum=0.9)
             case _:
                 raise ValueError(f"Unsupported optimizer: {optimizer}")
         criterion = torch.nn.CrossEntropyLoss()
@@ -177,6 +183,8 @@ class CNNModel(nn.Module, BaseModel):
             'epochs': ParamSpace.integer(min_val=10, max_val=200, default=100),
             'learning_rate': ParamSpace.float_range(min_val=1e-5, max_val=1e-1, default=0.001, log_scale=True),
             'batch_size': ParamSpace.integer(min_val=16, max_val=128, default=32),
+            'weight_decay': ParamSpace.float_range(min_val=0.0, max_val=0.01, default=0.001, log_scale=True),
+            'optimizer': ParamSpace.categorical(choices=['AdamW', 'Adam', 'SGD'], default='AdamW'), # For SGD, momentum is fixed at 0.9
         }
 
     @property
