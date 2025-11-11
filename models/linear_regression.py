@@ -14,5 +14,5 @@ class LinearRegressionModel(BaseModel):
             'C': [10**i for i in range(-2, 3)], # Regularization strength
             'penalty': ['l1', 'l2', 'elasticnet'],
             'solver': ['liblinear', 'saga'],
-            'l1_ratio': list(range(0.1, 1.0, 0.2)) # For elasticnet
+            'l1_ratio': [i/10 for i in range(1, 10, 2)] # For elasticnet
         }
