@@ -127,14 +127,15 @@ def train_epoch(
     epoch_acc = correct / total
 
     # Track epoch-level metrics
-    aim_run.track(
-        {
-            'loss': epoch_loss,
-            'accuracy': epoch_acc * 100
-        },
-        step=epoch,
-        context={'subset': 'train'}
-    )
+    if aim_run is not None:
+        aim_run.track(
+            {
+                'loss': epoch_loss,
+                'accuracy': epoch_acc * 100
+            },
+            step=epoch,
+            context={'subset': 'train'}
+        )
 
     track_params_dists(model, aim_run)
     track_gradients_dists(model, aim_run)
@@ -171,14 +172,15 @@ def validate(
     epoch_loss = running_loss / len(val_loader)
     epoch_acc = correct / total
 
-    aim_run.track(
-        {
-            'loss': epoch_loss,
-            'accuracy': epoch_acc * 100
-        },
-        step=epoch,
-        context={'subset': 'val'}
-    )
+    if aim_run is not None:
+        aim_run.track(
+            {
+                'loss': epoch_loss,
+                'accuracy': epoch_acc * 100
+            },
+            step=epoch,
+            context={'subset': 'val'}
+        )
 
     return epoch_loss, epoch_acc
 

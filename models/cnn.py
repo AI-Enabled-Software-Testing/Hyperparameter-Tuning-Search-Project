@@ -1,11 +1,19 @@
 import torch
 import torch.nn as nn
 from typing import Dict
+
+from framework.utils import count_parameters
 from .ParamSpace import ParamSpace
 from .base import BaseModel
+from framework.data_utils import create_dataloaders
+from framework.training import EarlyStopping, Checkpoint, train_epoch, validate
+from framework import utils
 
 import torch.optim as optim
-from torch.utils.data import TensorDataset, DataLoader
+
+from sklearn.model_selection import train_test_split
+
+MODEL_PATH = ".cache/models/cnn_cifar.pth"
 
 class CNNModel(nn.Module, BaseModel):   
     def __init__(self, num_classes: int = 10):
@@ -54,40 +62,83 @@ class CNNModel(nn.Module, BaseModel):
         x = self.model(x)
         return x
     
-    def train(self, X_train, y_train, epochs=100, learning_rate=0.001, batch_size=32):
+    def train(self, X_train, y_train, weight_decay=0.001, epochs=100, learning_rate=0.001, batch_size=32, optimizer='AdamW', scheduler='OneCycleLR', val_ratio=0.2):
         """Train the CNN model with PyTorch training loop."""
+        self = self.to(utils.device()) # Move model to device
+        # Check if model is instantiated properly
         if not self.is_initialized:
             raise RuntimeError("Model not initialized. Call create_model() first.")
-        
+
+        # Log Parameters
+        total_params, trainable_params = count_parameters(self)
+        print(f"Total parameters: {total_params:,}")
+        print(f"Trainable parameters: {trainable_params:,}")
+
+        # Break training set into train + val according to ratio
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=val_ratio)
+
         # Convert to tensors if needed
         if not isinstance(X_train, torch.Tensor):
             X_train = torch.tensor(X_train, dtype=torch.float32)
         if not isinstance(y_train, torch.Tensor):
             y_train = torch.tensor(y_train, dtype=torch.long)
+        if not isinstance(X_val, torch.Tensor):
+            X_val = torch.tensor(X_val, dtype=torch.float32)
+        if not isinstance(y_val, torch.Tensor):
+            y_val = torch.tensor(y_val, dtype=torch.long)
         
         # Create data loader
-        dataset = TensorDataset(X_train, y_train)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        
+        train_loader, val_loader = create_dataloaders(
+            X_train, y_train, X_val, y_val, batch_size=batch_size
+        )
+
+        # Setup Scheduler
+        scheduler = optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=learning_rate,
+            epochs=epochs,
+            steps_per_epoch=len(train_loader),
+        )
+
+        # Setup early stopping
+        early_stopper = EarlyStopping(patience=15, min_delta=0.001)
+        checkpoint = Checkpoint(MODEL_PATH)
+
         # Setup optimizer and loss
-        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        match optimizer:
+            case 'AdamW':
+                optimizer = optim.AdamW(self.parameters(), lr=learning_rate, weight_decay=weight_decay)
+            case 'Adam':
+                optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+            case _:
+                raise ValueError(f"Unsupported optimizer: {optimizer}")
         criterion = torch.nn.CrossEntropyLoss()
         
         # Training loop
         self.train_mode = True  # Set to training mode
-        for epoch in range(epochs):
+        for epoch in range(1, epochs + 1):
+            print(f"\nEpoch {epoch}/{epochs}")
             total_loss = 0
-            for batch_X, batch_y in dataloader:
-                optimizer.zero_grad()
-                outputs = self.forward(batch_X)
-                loss = criterion(outputs, batch_y)
-                loss.backward()
-                optimizer.step()
-                total_loss += loss.item()
-            
+            train_loss, train_acc = train_epoch(
+                self, train_loader, criterion, optimizer, utils.device(), scheduler=scheduler, aim_run=None, epoch=epoch
+            )
+            val_loss, val_acc = validate(self, val_loader, criterion, utils.device(), aim_run=None, epoch=epoch)
+            print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc*100:.2f}%)")
+            print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f} ({val_acc*100:.2f}%)")
+            if checkpoint.save_if_better(self, optimizer, epoch, val_acc, train_acc):
+                print(f"Saved best model (val_acc={val_acc:.4f}) to {MODEL_PATH}")
+
+            if early_stopper(val_loss, val_acc):
+                print(f"\nEarly stopping at {epoch}")
+                print(f"Best val acc: {early_stopper.best_acc:.4f} ({early_stopper.best_acc*100:.2f}%)")
+                break
+
             if epoch % (epochs // 10) == 0:  # Print every 10% of training
-                print(f'Epoch [{epoch}/{epochs}], Loss: {total_loss/len(dataloader):.4f}')
+                print(f'Epoch [{epoch}/{epochs}], Loss: {total_loss/(len(train_loader) + len(val_loader)):.4f}')
         
+
+        print("\nTraining complete!")
+        print(f"Best val acc: {checkpoint.best_val_acc:.4f} ({checkpoint.best_val_acc*100:.2f}%)")
         return self
 
     def predict(self, X_test, return_proba=False):
