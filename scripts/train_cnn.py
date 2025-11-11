@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=100,
+        default=300,
     )
     parser.add_argument(
         "--batch-size",
@@ -109,7 +109,7 @@ def train_model(args, writer: SummaryWriter):
         steps_per_epoch=len(train_loader),
     )
     
-    early_stopper = EarlyStopping(patience=15, min_delta=0.001)
+    early_stopper = EarlyStopping(patience=100, min_delta=0.001)
     checkpoint = Checkpoint(args.model_path)
 
     # Training loop

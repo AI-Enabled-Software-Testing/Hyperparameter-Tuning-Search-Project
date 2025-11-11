@@ -71,6 +71,8 @@ class EarlyStopping:
             return False
 
 
+
+
 def train_epoch(
     model: Module,
     train_loader: DataLoader,
@@ -125,8 +127,8 @@ def train_epoch(
     writer.add_scalar('train/epoch_loss', epoch_loss, epoch)
     writer.add_scalar('train/epoch_accuracy', epoch_acc * 100, epoch)
     
-    # Log parameter and gradient histograms (only every N epochs to reduce CPU overhead)
-    if epoch % 10 == 0 or epoch == 1:  # Log every 10 epochs or first epoch
+    # Log parameter and gradient histograms
+    if epoch % 10 == 0 or epoch == 1:
         for name, param in model.named_parameters():
             if param.grad is not None:
                 writer.add_histogram(f'train/params/{name}', param.data, epoch)
