@@ -1,9 +1,13 @@
 import torch
 import torch.nn as nn
-from typing import Dict
+from typing import Dict, Optional
+from dataclasses import dataclass
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
+from torch.utils.tensorboard import SummaryWriter
 
 from framework.utils import count_parameters
 from .ParamSpace import ParamSpace
@@ -19,6 +23,21 @@ from sklearn.metrics import confusion_matrix
 import numpy as np
 
 MODEL_PATH = ".cache/models/cnn_cifar.pth"
+
+@dataclass
+class TrainingConfig:
+    """Configuration for CNN model training."""
+    writer: SummaryWriter
+    weight_decay: float = 0.001
+    epochs: int = 100
+    learning_rate: float = 0.001
+    batch_size: int = 32
+    optimizer: str = 'AdamW'  # 'AdamW', 'Adam', 'SGD'
+    val_ratio: float = 0.2
+    checkpoint_path: Optional[str] = None
+    early_stopping_min_delta: float = 0.001
+    class_names: Optional[list] = None
+    sgd_momentum: float = 0.9  # Momentum for SGD optimizer
 
 # PyTorch Setup
 print(f"Using Device: {utils.device()}")
@@ -68,10 +87,6 @@ class CNNModel(nn.Module, BaseModel):
         print("CNN Model Architecture:")
         print(self)
 
-        # Optional: Compile the model for computational graph optimization
-        self.model = torch.compile(self.model)
-        self.features = torch.compile(self.features)
-     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if not self.is_initialized:
             raise RuntimeError("Model not initialized. Call create_model() first.")
@@ -164,15 +179,15 @@ class CNNModel(nn.Module, BaseModel):
         # Get predictions for both sets
         self.eval()
         with torch.no_grad():
-            # Training predictions
-            X_train = X_train.to(utils.device())
+            # Training predictions - fix shape from [1, N, 32, 32] to [N, 1, 32, 32]
+            X_train = X_train.squeeze(0).unsqueeze(1).to(utils.device())
             train_outputs = self(X_train)
             _, train_pred = torch.max(train_outputs, 1)
             train_pred = train_pred.cpu().numpy()
             y_train_np = y_train.cpu().numpy() if hasattr(y_train, 'cpu') else y_train
             
-            # Validation predictions  
-            X_val = X_val.to(utils.device())
+            # Validation predictions - fix shape from [1, N, 32, 32] to [N, 1, 32, 32]
+            X_val = X_val.squeeze(0).unsqueeze(1).to(utils.device())
             val_outputs = self(X_val)
             _, val_pred = torch.max(val_outputs, 1)
             val_pred = val_pred.cpu().numpy()
@@ -252,6 +267,26 @@ class CNNModel(nn.Module, BaseModel):
         ax.set_ylabel('True Label', fontweight='bold')
         ax.set_xlabel('Predicted Label', fontweight='bold')
     
+    def _confusion_matrix_to_image(self, cm, class_names, title):
+        """Convert a confusion matrix to a numpy array image for TensorBoard."""
+        fig, ax = plt.subplots(figsize=(8, 6))
+        self._plot_confusion_matrix(cm, ax, class_names, title)
+        plt.tight_layout()
+        
+        # Convert figure to numpy array using canvas
+        fig.canvas.draw()
+        # Get the buffer as RGBA array
+        buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+        width, height = fig.canvas.get_width_height()
+        img_array = buf.reshape((height, width, 4))[:, :, :3]  # Remove alpha channel, keep RGB
+        
+        # Convert RGB to CHW format for TensorBoard (C, H, W)
+        img_array = np.transpose(img_array, (2, 0, 1))
+        
+        plt.close(fig)
+        
+        return img_array
+    
     def evaluate_and_plot_confusion_matrix(self, X_test, y_test, dataset_name="Test", class_names:list=None, save_path=None):
         """
         Evaluate the model on a dataset and plot confusion matrix.
@@ -318,14 +353,30 @@ class CNNModel(nn.Module, BaseModel):
                 
         return accuracy, cm
     
-    def train(self, X_train, y_train, class_names: list, weight_decay=0.001, epochs=100, learning_rate=0.001, batch_size=32, optimizer='AdamW', val_ratio=0.2):
+    def train(self, X_train=None, y_train=None, config: TrainingConfig=None, mode=True):
         """
-            Train the CNN model with PyTorch training loop.
+            Train the CNN model with PyTorch training loop, or set training mode.
+            
+            If called with only mode parameter (boolean), sets the model to training/eval mode (PyTorch behavior).
+            If called with X_train, y_train, config, performs full training.
             
             Params:
-                X_train: Training features (must be a numpy array)
-                y_train: Training labels (must be a numpy array)
+                X_train: Training features (must be a numpy array or tensor)
+                y_train: Training labels (must be a numpy array or tensor)
+                config: TrainingConfig dataclass containing all training parameters
+                mode: Boolean to set training mode (for PyTorch compatibility)
+                
+            Returns:
+                dict: Training results with checkpoint info and final metrics (if training)
+                self: The model itself (if setting mode)
         """
+        # Handle PyTorch's train() call for training mode
+        # When eval() calls train(False), X_train will be False (bool) and y_train/config will be None
+        # When train() is called normally, X_train will be None and mode defaults to True
+        if (isinstance(X_train, bool) or (X_train is None and y_train is None and config is None)):
+            mode_value = X_train if isinstance(X_train, bool) else mode
+            return super().train(mode_value)
+        
         # Reset metrics for new training session
         self.reset_metrics()
         
@@ -340,7 +391,7 @@ class CNNModel(nn.Module, BaseModel):
         print(f"Trainable parameters: {self.trainable_params:,}")
 
         # Break training set into train + val according to ratio
-        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=val_ratio)
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=config.val_ratio)
 
         # Convert to tensors if needed
         if not isinstance(X_train, torch.Tensor):
@@ -354,42 +405,41 @@ class CNNModel(nn.Module, BaseModel):
         
         # Create data loader
         train_loader, val_loader = create_dataloaders(
-            X_train, y_train, X_val, y_val, batch_size=batch_size
+            X_train, y_train, X_val, y_val, batch_size=config.batch_size, num_workers=2
         )
 
-        # Setup Scheduler
+        # Setup optimizer and loss first (before scheduler)
+        match config.optimizer:
+            case 'AdamW': # AdamW optimizer with weight decay
+                optimizer_obj = optim.AdamW(self.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+            case 'Adam':
+                optimizer_obj = optim.Adam(self.parameters(), lr=config.learning_rate)
+            case 'SGD': # Stochastic Gradient Descent with momentum
+                optimizer_obj = optim.SGD(self.parameters(), lr=config.learning_rate, momentum=config.sgd_momentum)
+            case _:
+                raise ValueError(f"Unsupported optimizer: {config.optimizer}")
+        criterion = torch.nn.CrossEntropyLoss()
+
+        # Setup Scheduler (after optimizer is created)
         scheduler = optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=learning_rate,
-            epochs=epochs,
+            optimizer_obj,
+            max_lr=config.learning_rate,
+            epochs=config.epochs,
             steps_per_epoch=len(train_loader),
         )
 
-        # Setup early stopping
-        early_stopper = EarlyStopping(patience=15, min_delta=0.001)
-        checkpoint = Checkpoint(MODEL_PATH)
-
-        # Setup optimizer and loss
-        match optimizer:
-            case 'AdamW': # AdamW optimizer with weight decay
-                optimizer = optim.AdamW(self.parameters(), lr=learning_rate, weight_decay=weight_decay)
-            case 'Adam':
-                optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-            case 'SGD': # Stochastic Gradient Descent with momentum
-                optimizer = optim.SGD(self.parameters(), lr=learning_rate, momentum=0.9)
-            case _:
-                raise ValueError(f"Unsupported optimizer: {optimizer}")
-        criterion = torch.nn.CrossEntropyLoss()
+        early_stopper = EarlyStopping(patience=100, min_delta=config.early_stopping_min_delta)
+        checkpoint_path = config.checkpoint_path or MODEL_PATH
+        checkpoint = Checkpoint(checkpoint_path)
         
-        # Training loop
-        self.train_mode = True  # Set to training mode
-        for epoch in range(1, epochs + 1):
-            print(f"\nEpoch {epoch}/{epochs}")
+        for epoch in range(1, config.epochs + 1):
+            print(f"\nEpoch {epoch}/{config.epochs}")
             total_loss = 0
             train_loss, train_acc = train_epoch(
-                self, train_loader, criterion, optimizer, utils.device(), scheduler=scheduler, aim_run=None, epoch=epoch
+                self, train_loader, criterion, optimizer_obj, utils.device(), 
+                scheduler, epoch, 1.0, config.writer
             )
-            val_loss, val_acc = validate(self, val_loader, criterion, utils.device(), aim_run=None, epoch=epoch)
+            val_loss, val_acc = validate(self, val_loader, criterion, utils.device(), epoch, config.writer)
             
             # Store metrics
             self.train_losses.append(train_loss)
@@ -399,16 +449,46 @@ class CNNModel(nn.Module, BaseModel):
             
             print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc*100:.2f}%)")
             print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f} ({val_acc*100:.2f}%)")
-            if checkpoint.save_if_better(self, optimizer, epoch, val_acc, train_acc):
-                print(f"Saved best model (val_acc={val_acc:.4f}) to {MODEL_PATH}")
+            if checkpoint.save_if_better(self, optimizer_obj, epoch, val_acc, train_acc):
+                print(f"Saved best model (val_acc={val_acc:.4f}) to {checkpoint_path}")
+
+            # Log confusion matrices to TensorBoard every 10 epochs
+            if epoch % 10 == 0 and config.writer is not None:
+                self.eval()
+                with torch.no_grad():
+                    # Get predictions for training set
+                    X_train_tensor = X_train.squeeze(0).unsqueeze(1).to(utils.device())
+                    train_outputs = self(X_train_tensor)
+                    _, train_pred = torch.max(train_outputs, 1)
+                    train_pred = train_pred.cpu().numpy()
+                    y_train_np = y_train.cpu().numpy() if hasattr(y_train, 'cpu') else y_train
+                    
+                    # Get predictions for validation set
+                    X_val_tensor = X_val.squeeze(0).unsqueeze(1).to(utils.device())
+                    val_outputs = self(X_val_tensor)
+                    _, val_pred = torch.max(val_outputs, 1)
+                    val_pred = val_pred.cpu().numpy()
+                    y_val_np = y_val.cpu().numpy() if hasattr(y_val, 'cpu') else y_val
+                
+                # Compute confusion matrices
+                train_cm = confusion_matrix(y_train_np, train_pred)
+                val_cm = confusion_matrix(y_val_np, val_pred)
+                
+                # Convert to images and log to TensorBoard
+                class_names = config.class_names if config.class_names is not None else [f'Class {i}' for i in range(self.num_classes)]
+                train_cm_img = self._confusion_matrix_to_image(train_cm, class_names, f'Training Confusion Matrix - Epoch {epoch}')
+                val_cm_img = self._confusion_matrix_to_image(val_cm, class_names, f'Validation Confusion Matrix - Epoch {epoch}')
+                
+                config.writer.add_image('confusion_matrix/train', train_cm_img, epoch)
+                config.writer.add_image('confusion_matrix/val', val_cm_img, epoch)
 
             if early_stopper(val_loss, val_acc):
                 print(f"\nEarly stopping at {epoch}")
                 print(f"Best val acc: {early_stopper.best_acc:.4f} ({early_stopper.best_acc*100:.2f}%)")
                 break
 
-            if epoch % (epochs // 10) == 0:  # Print every 10% of training
-                print(f'Epoch [{epoch}/{epochs}], Loss: {total_loss/(len(train_loader) + len(val_loader)):.4f}')
+            if epoch % (config.epochs // 10) == 0:  # Print every 10% of training
+                print(f'Epoch [{epoch}/{config.epochs}], Loss: {total_loss/(len(train_loader) + len(val_loader)):.4f}')
         
 
         print("\nTraining complete!")
@@ -426,12 +506,20 @@ class CNNModel(nn.Module, BaseModel):
         ))
         
         # Create and save confusion matrices
-        self.plot_confusion_matrices(X_train, y_train, X_val, y_val, class_names=class_names, save_path=os.path.join(
+        self.plot_confusion_matrices(X_train, y_train, X_val, y_val, class_names=config.class_names, save_path=os.path.join(
             save_path,
             f"cnn_confusion_matrices_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         ))
 
-        return self
+        return {
+            'model': self,
+            'checkpoint': checkpoint,
+            'best_val_acc': checkpoint.best_val_acc,
+            'final_train_acc': train_acc,
+            'final_val_acc': val_acc,
+            'final_train_loss': train_loss,
+            'final_val_loss': val_loss,
+        }
 
     def predict(self, X_test, return_proba=False):
         """Make predictions with the CNN model."""

@@ -1,6 +1,7 @@
 import torch
+import torch.nn as nn
 from tqdm import tqdm
-from typing import Tuple, Optional
+from typing import Tuple
 from pathlib import Path
 from torch.utils.data import DataLoader
 from torch.nn import Module
@@ -85,7 +86,8 @@ def train_epoch(
     writer: SummaryWriter
 ) -> Tuple[float, float]:
     """Trains the model for one epoch and returns the epoch loss and accuracy."""
-    model.train(mode=True)
+    # Use super() to call PyTorch's train() method directly, bypassing custom train() override
+    nn.Module.train(model, mode=True)
     running_loss = 0.0
     correct = 0
     total = 0
