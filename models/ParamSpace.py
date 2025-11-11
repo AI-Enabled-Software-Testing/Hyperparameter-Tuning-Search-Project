@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union, List, Any, Dict
+from typing import Union, List, Any
 from enum import Enum
 
 class ParamType(Enum):
