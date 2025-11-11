@@ -434,7 +434,6 @@ class CNNModel(nn.Module, BaseModel):
         
         for epoch in range(1, config.epochs + 1):
             print(f"\nEpoch {epoch}/{config.epochs}")
-            total_loss = 0
             train_loss, train_acc = train_epoch(
                 self, train_loader, criterion, optimizer_obj, utils.device(), 
                 scheduler, epoch, 1.0, config.writer
@@ -488,7 +487,8 @@ class CNNModel(nn.Module, BaseModel):
                 break
 
             if epoch % (config.epochs // 10) == 0:  # Print every 10% of training
-                print(f'Epoch [{epoch}/{config.epochs}], Loss: {total_loss/(len(train_loader) + len(val_loader)):.4f}')
+                avg_loss = (train_loss + val_loss) / 2
+                print(f'Epoch [{epoch}/{config.epochs}], Avg Loss: {avg_loss:.4f}')
         
 
         print("\nTraining complete!")
