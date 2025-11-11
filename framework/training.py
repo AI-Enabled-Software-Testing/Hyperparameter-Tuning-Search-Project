@@ -97,7 +97,7 @@ def train_epoch(
         images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
-        outputs = model(images)
+        outputs = model(images) # forward pass
         loss = criterion(outputs, labels)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
@@ -131,7 +131,7 @@ def train_epoch(
     epoch_acc = correct / total
 
     # Track epoch-level metrics
-    if aim_run is not None:
+    if aim_run is not None and 'aim' in globals():
         aim_run.track(
             {
                 'loss': epoch_loss,
@@ -141,8 +141,8 @@ def train_epoch(
             context={'subset': 'train'}
         )
 
-    track_params_dists(model, aim_run)
-    track_gradients_dists(model, aim_run)
+        track_params_dists(model, aim_run)
+        track_gradients_dists(model, aim_run)
 
     return epoch_loss, epoch_acc
 
@@ -165,7 +165,7 @@ def validate(
         for images, labels in tqdm(val_loader, desc="Validating", leave=False):
             images, labels = images.to(device), labels.to(device)
 
-            outputs = model(images)
+            outputs = model(images) # forward pass
             loss = criterion(outputs, labels)
 
             running_loss += loss.item()
@@ -176,7 +176,7 @@ def validate(
     epoch_loss = running_loss / len(val_loader)
     epoch_acc = correct / total
 
-    if aim_run is not None:
+    if aim_run is not None and 'aim' in globals():
         aim_run.track(
             {
                 'loss': epoch_loss,
