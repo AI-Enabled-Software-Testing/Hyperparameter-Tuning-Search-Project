@@ -252,7 +252,7 @@ class CNNModel(nn.Module, BaseModel):
         ax.set_ylabel('True Label', fontweight='bold')
         ax.set_xlabel('Predicted Label', fontweight='bold')
     
-    def evaluate_and_plot_confusion_matrix(self, X_test, y_test, dataset_name="Test", class_names=None, save_path=None):
+    def evaluate_and_plot_confusion_matrix(self, X_test, y_test, dataset_name="Test", class_names:list=None, save_path=None):
         """
         Evaluate the model on a dataset and plot confusion matrix.
         
@@ -318,7 +318,7 @@ class CNNModel(nn.Module, BaseModel):
                 
         return accuracy, cm
     
-    def train(self, X_train, y_train, weight_decay=0.001, epochs=100, learning_rate=0.001, batch_size=32, optimizer='AdamW', val_ratio=0.2):
+    def train(self, X_train, y_train, class_names: list, weight_decay=0.001, epochs=100, learning_rate=0.001, batch_size=32, optimizer='AdamW', val_ratio=0.2):
         """
             Train the CNN model with PyTorch training loop.
             
@@ -426,7 +426,7 @@ class CNNModel(nn.Module, BaseModel):
         ))
         
         # Create and save confusion matrices
-        self.plot_confusion_matrices(X_train, y_train, X_val, y_val, save_path=os.path.join(
+        self.plot_confusion_matrices(X_train, y_train, X_val, y_val, class_names=class_names, save_path=os.path.join(
             save_path,
             f"cnn_confusion_matrices_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         ))
@@ -461,9 +461,9 @@ class CNNModel(nn.Module, BaseModel):
             'stride': ParamSpace.integer(min_val=1, max_val=3, default=2),
             'padding': ParamSpace.integer(min_val=0, max_val=2, default=1),
             'epochs': ParamSpace.integer(min_val=10, max_val=200, default=100),
-            'learning_rate': ParamSpace.float_range(min_val=1e-5, max_val=1e-1, default=0.001, log_scale=True),
+            'learning_rate': ParamSpace.float_range(min_val=1e-5, max_val=1e-1, default=0.001),
             'batch_size': ParamSpace.integer(min_val=16, max_val=128, default=32),
-            'weight_decay': ParamSpace.float_range(min_val=0.0, max_val=0.01, default=0.001, log_scale=True),
+            'weight_decay': ParamSpace.float_range(min_val=0.0, max_val=0.01, default=0.001),
             'optimizer': ParamSpace.categorical(choices=['AdamW', 'Adam', 'SGD'], default='AdamW'), # For SGD, momentum is fixed at 0.9
         }
 
