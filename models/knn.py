@@ -1,6 +1,7 @@
 from models.base import BaseModel
 from sklearn.neighbors import KNeighborsClassifier
 from typing import Dict
+from .ParamSpace import ParamSpace
 
 class KNNModel(BaseModel):
     """K-Nearest Neighbors classifier wrapper."""
@@ -9,11 +10,11 @@ class KNNModel(BaseModel):
         self.model = KNeighborsClassifier(**params)
         return self.model
     
-    def get_param_space(self) -> Dict[str, list]:
+    def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
-            'n_neighbors': list(range(3, 16)),
-            'weights': ['uniform', 'distance'],
-            'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'],
-            'p': [1, 2],  # Manhattan and Euclidean distance
-            'metric': ['minkowski', 'chebyshev', 'manhattan']
+            'n_neighbors': ParamSpace.integer(min_val=3, max_val=15, default=5),
+            'weights': ParamSpace.categorical(choices=['uniform', 'distance'], default='uniform'),
+            'algorithm': ParamSpace.categorical(choices=['auto', 'ball_tree', 'kd_tree', 'brute'], default='auto'),
+            'p': ParamSpace.categorical(choices=[1, 2], default=2),  # Manhattan and Euclidean distance
+            'metric': ParamSpace.categorical(choices=['minkowski', 'chebyshev', 'manhattan'], default='minkowski')
         }

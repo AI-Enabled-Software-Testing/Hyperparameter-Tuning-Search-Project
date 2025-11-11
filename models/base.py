@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from collections.abc import Iterable
 import warnings
+from .ParamSpace import ParamSpace
 
 
 class BaseModel(ABC):
@@ -25,7 +26,7 @@ class BaseModel(ABC):
         raise NotImplementedError("Subclasses must implement create_model method.")
     
     @abstractmethod
-    def get_param_space(self) -> Dict[str, Any]:
+    def get_param_space(self) -> Dict[str, ParamSpace]:
         """Get parameter space for hyperparameter tuning."""
         raise NotImplementedError("Subclasses must implement get_param_space method.")
     
