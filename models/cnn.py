@@ -393,21 +393,16 @@ class CNNModel(nn.Module, BaseModel):
         # Break training set into train + val according to ratio
         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=config.val_ratio)
 
-        # Convert to tensors if needed
-        if not isinstance(X_train, torch.Tensor):
-            X_train = torch.tensor(X_train, dtype=torch.float32)
-        if not isinstance(y_train, torch.Tensor):
-            y_train = torch.tensor(y_train, dtype=torch.long)
-        if not isinstance(X_val, torch.Tensor):
-            X_val = torch.tensor(X_val, dtype=torch.float32)
-        if not isinstance(y_val, torch.Tensor):
-            y_val = torch.tensor(y_val, dtype=torch.long)
-        
-        # Create data loader
+        # Create data loaders (expects lists of numpy arrays)
         train_loader, val_loader = create_dataloaders(
             X_train, y_train, X_val, y_val, batch_size=config.batch_size, num_workers=2
         )
-
+        
+        X_train = torch.tensor(np.array(X_train), dtype=torch.float32)
+        X_val = torch.tensor(np.array(X_val), dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.long)
+        y_val = torch.tensor(y_val, dtype=torch.long)
+        
         # Setup optimizer and loss first (before scheduler)
         match config.optimizer:
             case 'AdamW': # AdamW optimizer with weight decay
@@ -486,10 +481,7 @@ class CNNModel(nn.Module, BaseModel):
                 print(f"Best val acc: {early_stopper.best_acc:.4f} ({early_stopper.best_acc*100:.2f}%)")
                 break
 
-            if epoch % (config.epochs // 10) == 0:  # Print every 10% of training
-                avg_loss = (train_loss + val_loss) / 2
-                print(f'Epoch [{epoch}/{config.epochs}], Avg Loss: {avg_loss:.4f}')
-        
+           
 
         print("\nTraining complete!")
         print(f"Best val acc: {checkpoint.best_val_acc:.4f} ({checkpoint.best_val_acc*100:.2f}%)")
