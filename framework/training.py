@@ -6,8 +6,7 @@ from torch.utils.data import DataLoader
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
-from aim import Run
-from aim.pytorch import track_params_dists, track_gradients_dists
+from torch.utils.tensorboard import SummaryWriter
 
 
 class Checkpoint:
@@ -78,10 +77,10 @@ def train_epoch(
     criterion: torch.nn.Module,
     optimizer: Optimizer,
     device: torch.device,
-    aim_run: Run,
     scheduler: LRScheduler,
     epoch: int = 0,
-    grad_clip_norm: float = 1.0
+    grad_clip_norm: float = 1.0,
+    writer: Optional[SummaryWriter] = None
 ) -> Tuple[float, float]:
     """Trains the model for one epoch and returns the epoch loss and accuracy."""
     model.train()
@@ -100,44 +99,41 @@ def train_epoch(
         optimizer.step()
         scheduler.step()
 
-        # Stats
-        running_loss += loss.item()
+        # Stats - compute once and reuse to avoid duplicate .item() calls
+        loss_value = loss.item()  # Single GPU->CPU sync
+        running_loss += loss_value
+        
         _, predicted = torch.max(outputs.data, 1)
+        batch_correct = (predicted == labels).sum().item()  # Single GPU->CPU sync
         total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        correct += batch_correct
 
         # Track metrics
-        if batch_idx % 10 == 0:
-            # Batch accuracy
-            batch_correct = (predicted == labels).sum().item()
+        if batch_idx % 10 == 0 and writer is not None:
             batch_total = labels.size(0)
             batch_acc = 100 * batch_correct / batch_total
             current_lr = optimizer.param_groups[0]['lr']
-            aim_run.track(
-                {
-                    'loss': loss.item(),
-                    'accuracy': batch_acc,
-                    'learning_rate': current_lr
-                },
-                step=epoch * len(train_loader) + batch_idx,
-                context={'subset': 'train'}
-            )
+            step = epoch * len(train_loader) + batch_idx
+            writer.add_scalar('train/batch_loss', loss_value, step)
+            writer.add_scalar('train/batch_accuracy', batch_acc, step)
+            writer.add_scalar('train/learning_rate', current_lr, step)
 
     epoch_loss = running_loss / len(train_loader)
     epoch_acc = correct / total
 
     # Track epoch-level metrics
-    aim_run.track(
-        {
-            'loss': epoch_loss,
-            'accuracy': epoch_acc * 100
-        },
-        step=epoch,
-        context={'subset': 'train'}
-    )
-
-    track_params_dists(model, aim_run)
-    track_gradients_dists(model, aim_run)
+    if writer is not None:
+        writer.add_scalar('train/epoch_loss', epoch_loss, epoch)
+        writer.add_scalar('train/epoch_accuracy', epoch_acc * 100, epoch)
+    
+    # Log parameter and gradient histograms (only every N epochs to reduce CPU overhead)
+    if writer is not None and (epoch % 10 == 0 or epoch == 1):  # Log every 10 epochs or first epoch
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                # Log parameter histogram (TensorBoard handles this natively!)
+                writer.add_histogram(f'train/params/{name}', param.data, epoch)
+                # Log gradient histogram
+                writer.add_histogram(f'train/grads/{name}', param.grad.data, epoch)
 
     return epoch_loss, epoch_acc
 
@@ -147,8 +143,8 @@ def validate(
     val_loader: DataLoader,
     criterion: torch.nn.Module,
     device: torch.device,
-    aim_run: Run,
-    epoch: int = 0
+    epoch: int = 0,
+    writer: Optional[SummaryWriter] = None
 ) -> Tuple[float, float]:
     """Validates the model and returns the epoch loss and accuracy."""
     model.eval()
@@ -171,14 +167,9 @@ def validate(
     epoch_loss = running_loss / len(val_loader)
     epoch_acc = correct / total
 
-    aim_run.track(
-        {
-            'loss': epoch_loss,
-            'accuracy': epoch_acc * 100
-        },
-        step=epoch,
-        context={'subset': 'val'}
-    )
+    if writer is not None:
+        writer.add_scalar('val/epoch_loss', epoch_loss, epoch)
+        writer.add_scalar('val/epoch_accuracy', epoch_acc * 100, epoch)
 
     return epoch_loss, epoch_acc
 

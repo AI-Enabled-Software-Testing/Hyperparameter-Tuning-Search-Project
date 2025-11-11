@@ -1,9 +1,10 @@
 import argparse
 from pathlib import Path
+from datetime import datetime
 import torch.nn as nn
 import torch.optim as optim
 import sys
-from aim import Run
+from torch.utils.tensorboard import SummaryWriter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models.cnn import CNNModel
@@ -13,8 +14,8 @@ from framework import utils
 from framework.utils import init_device, count_parameters
 
 
-
-def main():
+def parse_args():
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Train and save CIFAR-10 CNN")
     parser.add_argument(
         "--model-path",
@@ -29,7 +30,7 @@ def main():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=32,
+        default=128,
     )
     parser.add_argument(
         "--lr",
@@ -42,26 +43,17 @@ def main():
         default=None,
         help="cuda/cpu",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def train_model(args, writer: SummaryWriter):
+    """Train the CNN model with the given arguments."""
     weight_decay = 0.001
     val_ratio = 0.2
     num_classes = 10
-
-    # Initialize Aim Run
-    aim_run = Run()
-    aim_run['hparams'] = {
-        'epochs': args.epochs,
-        'batch_size': args.batch_size,
-        'learning_rate': args.lr,
-        'optimizer': 'AdamW',
-        'weight_decay': weight_decay,
-        'scheduler': 'OneCycleLR',
-        'val_ratio': val_ratio,
-        'num_classes': num_classes,
-    }
-    print("Aim tracking initialized")
-
+    
+    print("TensorBoard tracking initialized")
+    
     init_device(args.device)
     print(f"Using device: {utils.device()}")
 
@@ -76,7 +68,6 @@ def main():
     train_loader, val_loader = create_dataloaders(
         X_train, y_train, X_val, y_val, batch_size=args.batch_size
     )
-    
 
     model = CNNModel(num_classes)
     model = model.to(utils.device())
@@ -84,6 +75,29 @@ def main():
     total_params, trainable_params = count_parameters(model)
     print(f"Total parameters: {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
+    
+    # Log hyperparameters to TensorBoard
+    hparams = {
+        'epochs': args.epochs,
+        'batch_size': args.batch_size,
+        'learning_rate': args.lr,
+        'optimizer': 'AdamW',
+        'weight_decay': weight_decay,
+        'scheduler': 'OneCycleLR',
+        'val_ratio': val_ratio,
+        'num_classes': num_classes,
+        'total_parameters': total_params,
+        'trainable_parameters': trainable_params,
+    }
+    
+    # Log model graph (will be populated with metrics later)
+    if writer is not None:
+        try:
+            # Get a sample input to trace the model
+            sample_input = next(iter(train_loader))[0][:1].to(utils.device())
+            writer.add_graph(model, sample_input)
+        except Exception as e:
+            print(f"Warning: Could not log model graph: {e}")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=weight_decay)
@@ -102,9 +116,10 @@ def main():
     for epoch in range(1, args.epochs + 1):
         print(f"\nEpoch {epoch}/{args.epochs}")
         train_loss, train_acc = train_epoch(
-            model, train_loader, criterion, optimizer, utils.device(), scheduler=scheduler, aim_run=aim_run, epoch=epoch
+            model, train_loader, criterion, optimizer, utils.device(), 
+            scheduler=scheduler, epoch=epoch, writer=writer
         )
-        val_loss, val_acc = validate(model, val_loader, criterion, utils.device(), aim_run=aim_run, epoch=epoch)
+        val_loss, val_acc = validate(model, val_loader, criterion, utils.device(), epoch=epoch, writer=writer)
         
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc*100:.2f}%)")
         print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f} ({val_acc*100:.2f}%)")
@@ -116,12 +131,35 @@ def main():
             print(f"\nEarly stopping at {epoch}")
             print(f"Best val acc: {early_stopper.best_acc:.4f} ({early_stopper.best_acc*100:.2f}%)")
             break
-
+    
+    # Log hyperparameters with final metrics
+    if writer is not None:
+        metrics = {
+            'best_val_acc': checkpoint.best_val_acc,
+            'final_train_acc': train_acc,
+            'final_val_acc': val_acc,
+        }
+        writer.add_hparams(hparams, metrics)
 
     print("\nTraining complete!")
     print(f"Best val acc: {checkpoint.best_val_acc:.4f} ({checkpoint.best_val_acc*100:.2f}%)")
 
 
+def main():
+    args = parse_args()
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = Path(f".cache/tensorboard/cifar10_cnn_training/run_{timestamp}")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create TensorBoard SummaryWriter
+    writer = SummaryWriter(log_dir=str(log_dir))
+    
+    try:
+        train_model(args, writer)
+    finally:
+        writer.close()
+
+
 if __name__ == "__main__":
     main()
-
