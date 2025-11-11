@@ -153,7 +153,7 @@ def get_model_by_name(model_name: str) -> BaseModel:
     from models.decision_tree import DecisionTreeModel
     from models.mlp import MLPModel
     from models.knn import KNNModel
-    from models.linear_regression import LinearRegressionModel
+    from models.logistic_regression import LinearRegressionModel
     models = {
         'decision_tree': DecisionTreeModel,
         'mlp': MLPModel,

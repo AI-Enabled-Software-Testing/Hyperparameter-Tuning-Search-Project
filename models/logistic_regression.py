@@ -1,13 +1,13 @@
 from typing import Dict
 from models.base import BaseModel
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
 from .ParamSpace import ParamSpace
 
-class LinearRegressionModel(BaseModel):
-    """Linear Regression model wrapper."""
+class LogisticRegression(BaseModel):
+    """Logistic Regression model wrapper for classification tasks."""
     
     def create_model(self, **params):
-        self.model = LinearRegression(**params)
+        self.model = LogisticRegression(max_iter=1000, **params)
         return self.model
     
     def get_param_space(self) -> Dict[str, ParamSpace]:
