@@ -1,13 +1,17 @@
 import torch
 from tqdm import tqdm
-from typing import Tuple, Optional
+from typing import Tuple
 from pathlib import Path
 from torch.utils.data import DataLoader
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
-from aim import Run
-from aim.pytorch import track_params_dists, track_gradients_dists
+try:
+    from aim import Run
+    from aim.pytorch import track_params_dists, track_gradients_dists
+except ImportError:
+    print("Aim is not installed. Metrics tracking will be disabled.")
+    pass
 
 
 class Checkpoint:
