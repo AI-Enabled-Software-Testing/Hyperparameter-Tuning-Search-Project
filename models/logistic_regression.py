@@ -3,7 +3,7 @@ from models.base import BaseModel
 from sklearn.linear_model import LogisticRegression
 from .ParamSpace import ParamSpace
 
-class LogisticRegression(BaseModel):
+class LogisticRegressionModel(BaseModel):
     """Logistic Regression model wrapper for classification tasks."""
     
     def create_model(self, **params):
