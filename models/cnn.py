@@ -64,19 +64,29 @@ class CNNModel(nn.Module, BaseModel):
         # Use detected input channels or default to 1 for grayscale
         in_channels = self.input_channels if self.input_channels is not None else 1
         
+        # Validate kernel size compatibility (prevent kernel larger than input after conv layers)
+        self._validate_architecture_params(kernel_size, stride, padding)
+        
+        # Use adaptive architecture for different input sizes
+        if hasattr(self, '_input_height') and hasattr(self, '_input_width'):
+            # For small inputs (MNIST: 28x28), use smaller kernels and strides
+            if self._input_height <= 28 or self._input_width <= 28:
+                kernel_size = min(kernel_size, 3)  # Cap at 3x3 for small inputs
+                stride = min(stride, 2)  # Cap stride at 2 for small inputs
+        
         self.features = nn.Sequential(
             # Conv1: Handle variable input channels
             nn.Conv2d(in_channels, 32, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             
-            # Conv2: 32 -> 64
-            nn.Conv2d(32, 64, kernel_size=kernel_size, stride=stride, padding=padding),
+            # Conv2: 32 -> 64 (use smaller kernel for subsequent layers)
+            nn.Conv2d(32, 64, kernel_size=min(kernel_size, 3), stride=stride, padding=padding),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             
-            # Conv3: 64 -> 128
-            nn.Conv2d(64, 128, kernel_size=kernel_size, stride=stride, padding=padding),
+            # Conv3: 64 -> 128 (use even smaller kernel for final conv)
+            nn.Conv2d(64, 128, kernel_size=min(kernel_size, 3), stride=max(1, stride-1), padding=padding),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.AdaptiveAvgPool2d(1),  # Adaptive pooling to 1×1×128
@@ -89,8 +99,47 @@ class CNNModel(nn.Module, BaseModel):
         )
 
         # Print model architecture
-        print(f"CNN Model Architecture (input channels: {in_channels}):")
+        print(f"CNN Model Architecture (input channels: {in_channels}, kernel: {kernel_size}, stride: {stride}):")
         print(self)
+
+    def _validate_architecture_params(self, kernel_size, stride, padding):
+        """Validate that the CNN architecture parameters are compatible with expected input sizes."""
+        def calc_output_size(input_size, kernel, stride, padding):
+            return (input_size + 2 * padding - kernel) // stride + 1
+        
+        # Test with common input sizes (MNIST: 28x28, CIFAR-10: 32x32)
+        test_sizes = [28, 32]  # Height/Width dimensions
+        
+        for input_size in test_sizes:
+            # Simulate 3 conv layers
+            size = input_size
+            for layer in range(3):
+                # Use progressive kernel size reduction as in create_model
+                if layer == 0:
+                    k = kernel_size
+                elif layer == 1:
+                    k = min(kernel_size, 3)
+                else:  # layer == 2
+                    k = min(kernel_size, 3)
+                    s = max(1, stride-1)
+                    size = calc_output_size(size, k, s, padding)
+                    continue
+                
+                size = calc_output_size(size, k, stride, padding)
+                
+                if size <= 0:
+                    raise ValueError(
+                        f"Invalid CNN parameters: kernel_size={kernel_size}, stride={stride}, padding={padding}. "
+                        f"Results in non-positive output size ({size}) at layer {layer+1} for {input_size}x{input_size} input."
+                    )
+                elif size < k and layer < 2:  # Check if next layer's kernel will fit
+                    next_k = min(kernel_size, 3) if layer == 0 else min(kernel_size, 3)
+                    if size < next_k:
+                        raise ValueError(
+                            f"Invalid CNN parameters: kernel_size={kernel_size}, stride={stride}, padding={padding}. "
+                            f"Layer {layer+1} output size ({size}) too small for next layer kernel ({next_k}) "
+                            f"for {input_size}x{input_size} input."
+                        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if not self.is_initialized:
@@ -426,6 +475,11 @@ class CNNModel(nn.Module, BaseModel):
         # Convert to PyTorch tensor format: (N, C, H, W)
         X_tensor = torch.from_numpy(X_np).permute(0, 3, 1, 2).float()
         
+        # Store input dimensions for architecture validation
+        _, channels, height, width = X_tensor.shape
+        self._input_height = height
+        self._input_width = width
+        
         # Normalize pixel values to [0, 1] if they're in [0, 255] range
         if X_tensor.max() > 1.0:
             X_tensor = X_tensor / 255.0
@@ -434,7 +488,7 @@ class CNNModel(nn.Module, BaseModel):
         # Update the model's input channels if not set
         if self.input_channels is None:
             self.input_channels = channels
-            print(f"Detected {channels} input channel(s)")
+            print(f"Detected {channels} input channel(s), input size: {height}x{width}")
             # Only recreate model if it hasn't been trained yet (no trained weights)
             if hasattr(self, 'features') and not self._has_trained_weights():
                 print("Recreating model with correct input channels...")
@@ -732,8 +786,8 @@ class CNNModel(nn.Module, BaseModel):
     
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
-            'kernel_size': ParamSpace.integer(min_val=3, max_val=7, default=4),
-            'stride': ParamSpace.integer(min_val=1, max_val=3, default=2),
+            'kernel_size': ParamSpace.integer(min_val=3, max_val=5, default=3),  # Reduced max from 7 to 5
+            'stride': ParamSpace.integer(min_val=1, max_val=2, default=1),  # Reduced max from 3 to 2
             'padding': ParamSpace.integer(min_val=0, max_val=2, default=1),
             'epochs': ParamSpace.integer(min_val=10, max_val=200, default=100),
             'learning_rate': ParamSpace.float_range(min_val=1e-5, max_val=1e-1, default=0.001),
