@@ -11,8 +11,13 @@ from models.cnn import CNNModel, TrainingConfig
 from framework.data_utils import load_cifar10_data, prepare_data, split_train_val, create_dataloaders
 from framework.training import train_epoch, validate, EarlyStopping, Checkpoint
 from framework import utils
-from framework.utils import init_device, count_parameters
+from framework.utils import init_device, count_parameters, test_pytorch_setup
 
+# Initialize device first for CUDA support
+init_device()
+
+# PyTorch Setup Tests
+test_pytorch_setup()
 
 def parse_args():
     """Parse command line arguments."""

@@ -31,3 +31,18 @@ def count_parameters(model: Module) -> Tuple[int, int]:
     trainable_params = sum(torch.numel(p) for p in model.parameters() if p.requires_grad)
     return total_params, trainable_params
 
+def torch_version() -> str:
+    """Get the installed PyTorch version."""
+    return torch.__version__
+
+def test_pytorch_setup():
+    """A Smoke Test to verify PyTorch setup like CUDA device."""
+    print(f"PyTorch version: {torch_version()}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    print(f"Current device: {device()}")
+    print(f"Is CUDA: {is_cuda()}")
+    assert torch_version() is not None, "PyTorch is not installed properly."
+    assert device() is not None, "Device is not initialized."
+    assert torch.cuda.is_available(), "CUDA is not available."
+    assert is_cuda(), "Device is not set to CUDA."
+    print("PyTorch setup test passed.")    
