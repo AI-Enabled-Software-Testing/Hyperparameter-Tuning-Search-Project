@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import TensorDataset, DataLoader
 
 from framework.utils import count_parameters
 from .ParamSpace import ParamSpace
 from .base import BaseModel
-from framework.data_utils import create_dataloaders
 from framework.training import EarlyStopping, Checkpoint, train_epoch, validate
 from framework import utils
 
@@ -21,6 +21,7 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 import numpy as np
+import math
 
 MODEL_PATH = ".cache/models/cnn_cifar.pth"
 
@@ -44,9 +45,10 @@ print(f"Using Device: {utils.device()}")
 print(f"Is CUDA Available: {utils.is_cuda()}")
 
 class CNNModel(nn.Module, BaseModel):   
-    def __init__(self, num_classes: int = 10):
+    def __init__(self, num_classes: int = 10, input_channels: int = None):
         super().__init__()
         self.num_classes = num_classes
+        self.input_channels = input_channels  # Will be determined automatically from data
         # Initialize metrics tracking
         self.train_losses = []
         self.train_accuracies = []
@@ -59,22 +61,25 @@ class CNNModel(nn.Module, BaseModel):
         stride = params.get('stride', 2)
         padding = params.get('padding', 1)
         
+        # Use detected input channels or default to 1 for grayscale
+        in_channels = self.input_channels if self.input_channels is not None else 1
+        
         self.features = nn.Sequential(
-            # Conv1: 32×32×1 -> 16×16×32
-            nn.Conv2d(1, 32, kernel_size=kernel_size, stride=stride, padding=padding),
+            # Conv1: Handle variable input channels
+            nn.Conv2d(in_channels, 32, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             
-            # Conv2: 16×16×32 -> 8×8×64
+            # Conv2: 32 -> 64
             nn.Conv2d(32, 64, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             
-            # Conv3: 8×8×64 -> 4×4×128
+            # Conv3: 64 -> 128
             nn.Conv2d(64, 128, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d(1),  # 4×4×128 -> 1×1×128
+            nn.AdaptiveAvgPool2d(1),  # Adaptive pooling to 1×1×128
         )
         
         self.model = nn.Sequential(
@@ -84,7 +89,7 @@ class CNNModel(nn.Module, BaseModel):
         )
 
         # Print model architecture
-        print("CNN Model Architecture:")
+        print(f"CNN Model Architecture (input channels: {in_channels}):")
         print(self)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -179,16 +184,16 @@ class CNNModel(nn.Module, BaseModel):
         # Get predictions for both sets
         self.eval()
         with torch.no_grad():
-            # Training predictions - fix shape from [1, N, 32, 32] to [N, 1, 32, 32]
-            X_train = X_train.squeeze(0).unsqueeze(1).to(utils.device())
-            train_outputs = self(X_train)
+            # Training predictions
+            X_train_device = X_train.to(utils.device())
+            train_outputs = self(X_train_device)
             _, train_pred = torch.max(train_outputs, 1)
             train_pred = train_pred.cpu().numpy()
             y_train_np = y_train.cpu().numpy() if hasattr(y_train, 'cpu') else y_train
             
-            # Validation predictions - fix shape from [1, N, 32, 32] to [N, 1, 32, 32]
-            X_val = X_val.squeeze(0).unsqueeze(1).to(utils.device())
-            val_outputs = self(X_val)
+            # Validation predictions
+            X_val_device = X_val.to(utils.device())
+            val_outputs = self(X_val_device)
             _, val_pred = torch.max(val_outputs, 1)
             val_pred = val_pred.cpu().numpy()
             y_val_np = y_val.cpu().numpy() if hasattr(y_val, 'cpu') else y_val
@@ -353,16 +358,106 @@ class CNNModel(nn.Module, BaseModel):
                 
         return accuracy, cm
     
-    def train(self, X_train=None, y_train=None, config: TrainingConfig=None, mode=True):
+    def _preprocess_input_data(self, X, dataset_name="Unknown"):
+        """
+        Preprocess input data to handle different input formats from the notebook.
+        Converts flattened arrays back to proper image tensors with correct channels.
+        """
+        print(f"Preprocessing input data for {dataset_name}...")
+        
+        # Convert to numpy array if it's a tensor
+        if isinstance(X, torch.Tensor):
+            X_np = X.cpu().numpy()
+        else:
+            X_np = np.array(X)
+        
+        print(f"Original shape: {X_np.shape}")
+        
+        # Handle different input shapes
+        if len(X_np.shape) == 2:  # Flattened data: (n_samples, flattened_pixels)
+            n_samples = X_np.shape[0]
+            total_pixels = X_np.shape[1]
+            
+            # Infer image dimensions and channels
+            if dataset_name.upper() == "MNIST" or total_pixels == 784:  # MNIST: 28x28x1 = 784
+                height, width, channels = 28, 28, 1
+                X_np = X_np.reshape(n_samples, height, width, channels)
+                print(f"Detected MNIST format: reshaped to {X_np.shape}")
+            elif dataset_name.upper() == "CIFAR-10" or total_pixels == 3072:  # CIFAR-10: 32x32x3 = 3072
+                height, width, channels = 32, 32, 3
+                X_np = X_np.reshape(n_samples, height, width, channels)
+                print(f"Detected CIFAR-10 format: reshaped to {X_np.shape}")
+            elif total_pixels == 1024:  # 32x32x1 = 1024 (grayscale version of CIFAR-10)
+                height, width, channels = 32, 32, 1
+                X_np = X_np.reshape(n_samples, height, width, channels)
+                print(f"Detected 32x32 grayscale format: reshaped to {X_np.shape}")
+            else:
+                # Try to infer square image dimensions
+                # Assume grayscale first
+                side = int(math.sqrt(total_pixels))
+                if side * side == total_pixels:
+                    height, width, channels = side, side, 1
+                    X_np = X_np.reshape(n_samples, height, width, channels)
+                    print(f"Inferred square grayscale: reshaped to {X_np.shape}")
+                else:
+                    # Try RGB
+                    pixels_per_channel = total_pixels // 3
+                    side = int(math.sqrt(pixels_per_channel))
+                    if side * side * 3 == total_pixels:
+                        height, width, channels = side, side, 3
+                        X_np = X_np.reshape(n_samples, height, width, channels)
+                        print(f"Inferred square RGB: reshaped to {X_np.shape}")
+                    else:
+                        raise ValueError(f"Cannot infer image dimensions from flattened shape {X_np.shape}")
+        
+        elif len(X_np.shape) == 3:  # (n_samples, height, width) - grayscale
+            n_samples, height, width = X_np.shape
+            channels = 1
+            X_np = X_np.reshape(n_samples, height, width, channels)
+            print(f"Added channel dimension: reshaped to {X_np.shape}")
+        
+        elif len(X_np.shape) == 4:  # (n_samples, height, width, channels) - already proper format
+            n_samples, height, width, channels = X_np.shape
+            print(f"Already in correct format: {X_np.shape}")
+        
+        else:
+            raise ValueError(f"Unsupported input shape: {X_np.shape}")
+        
+        # Convert to PyTorch tensor format: (N, C, H, W)
+        X_tensor = torch.from_numpy(X_np).permute(0, 3, 1, 2).float()
+        
+        # Normalize pixel values to [0, 1] if they're in [0, 255] range
+        if X_tensor.max() > 1.0:
+            X_tensor = X_tensor / 255.0
+            print("Normalized pixel values to [0, 1] range")
+        
+        # Update the model's input channels if not set
+        if self.input_channels is None:
+            self.input_channels = channels
+            print(f"Detected {channels} input channel(s)")
+            # Only recreate model if it hasn't been trained yet (no trained weights)
+            if hasattr(self, 'features') and not self._has_trained_weights():
+                print("Recreating model with correct input channels...")
+                self.create_model()
+            elif hasattr(self, 'features') and self._has_trained_weights():
+                print(f"Warning: Model was already trained, keeping existing weights despite channel mismatch.")
+                print(f"Expected {channels} channels, model has {self.features[0].in_channels} channels.")
+                # Don't recreate to preserve trained weights
+        
+        print(f"Final tensor shape: {X_tensor.shape} (N, C, H, W)")
+        return X_tensor
+    
+    def train(self, X_train=None, y_train=None, class_names=None, config: TrainingConfig=None, mode=True):
         """
             Train the CNN model with PyTorch training loop, or set training mode.
             
             If called with only mode parameter (boolean), sets the model to training/eval mode (PyTorch behavior).
-            If called with X_train, y_train, config, performs full training.
+            If called with X_train, y_train, class_names, config, performs full training.
             
             Params:
                 X_train: Training features (must be a numpy array or tensor)
                 y_train: Training labels (must be a numpy array or tensor)
+                class_names: List of class names for the dataset (optional)
                 config: TrainingConfig dataclass containing all training parameters
                 mode: Boolean to set training mode (for PyTorch compatibility)
                 
@@ -373,7 +468,7 @@ class CNNModel(nn.Module, BaseModel):
         # Handle PyTorch's train() call for training mode
         # When eval() calls train(False), X_train will be False (bool) and y_train/config will be None
         # When train() is called normally, X_train will be None and mode defaults to True
-        if (isinstance(X_train, bool) or (X_train is None and y_train is None and config is None)):
+        if (isinstance(X_train, bool) or (X_train is None and y_train is None and class_names is None and config is None)):
             mode_value = X_train if isinstance(X_train, bool) else mode
             return super().train(mode_value)
         
@@ -385,6 +480,25 @@ class CNNModel(nn.Module, BaseModel):
         if not self.is_initialized:
             raise RuntimeError("Model not initialized. Call create_model() first.")
 
+        # Preprocess input data to handle different formats from notebook
+        X_train = self._preprocess_input_data(X_train, "training data")
+
+        # Handle case where config is None - create default config
+        if config is None:
+            from torch.utils.tensorboard import SummaryWriter
+            config = TrainingConfig(
+                writer=SummaryWriter(),
+                val_ratio=0.2,
+                epochs=10,  # Reduced default for quick testing
+                learning_rate=0.001,
+                batch_size=32,
+                optimizer='AdamW',
+                weight_decay=0.001,
+                early_stopping_min_delta=0.001,
+                class_names=class_names  # Use the passed class_names
+            )
+            print("No config provided, using default training configuration.")
+
         # Log Parameters
         self.total_params, self.trainable_params = count_parameters(self)
         print(f"Total parameters: {self.total_params:,}")
@@ -393,19 +507,30 @@ class CNNModel(nn.Module, BaseModel):
         # Break training set into train + val according to ratio
         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=config.val_ratio)
 
-        # Convert to tensors if needed
-        if not isinstance(X_train, torch.Tensor):
-            X_train = torch.tensor(X_train, dtype=torch.float32)
+        # Convert labels to tensors if needed
         if not isinstance(y_train, torch.Tensor):
             y_train = torch.tensor(y_train, dtype=torch.long)
-        if not isinstance(X_val, torch.Tensor):
-            X_val = torch.tensor(X_val, dtype=torch.float32)
         if not isinstance(y_val, torch.Tensor):
             y_val = torch.tensor(y_val, dtype=torch.long)
         
-        # Create data loader
-        train_loader, val_loader = create_dataloaders(
-            X_train, y_train, X_val, y_val, batch_size=config.batch_size, num_workers=2
+        # Create PyTorch datasets and dataloaders
+        
+        train_dataset = TensorDataset(X_train, y_train)
+        val_dataset = TensorDataset(X_val, y_val)
+        
+        train_loader = DataLoader(
+            train_dataset, 
+            batch_size=config.batch_size, 
+            shuffle=True, 
+            num_workers=0,  # Set to 0 for Windows compatibility
+            pin_memory=utils.is_cuda()
+        )
+        val_loader = DataLoader(
+            val_dataset, 
+            batch_size=config.batch_size, 
+            shuffle=False, 
+            num_workers=0,  # Set to 0 for Windows compatibility
+            pin_memory=utils.is_cuda()
         )
 
         # Setup optimizer and loss first (before scheduler)
@@ -434,12 +559,12 @@ class CNNModel(nn.Module, BaseModel):
         
         for epoch in range(1, config.epochs + 1):
             print(f"\nEpoch {epoch}/{config.epochs}")
-            total_loss = 0
             train_loss, train_acc = train_epoch(
                 self, train_loader, criterion, optimizer_obj, utils.device(), 
                 scheduler, epoch, 1.0, config.writer
             )
             val_loss, val_acc = validate(self, val_loader, criterion, utils.device(), epoch, config.writer)
+            total_loss = train_loss + val_loss
             
             # Store metrics
             self.train_losses.append(train_loss)
@@ -457,15 +582,15 @@ class CNNModel(nn.Module, BaseModel):
                 self.eval()
                 with torch.no_grad():
                     # Get predictions for training set
-                    X_train_tensor = X_train.squeeze(0).unsqueeze(1).to(utils.device())
-                    train_outputs = self(X_train_tensor)
+                    X_train_device = X_train.to(utils.device())
+                    train_outputs = self(X_train_device)
                     _, train_pred = torch.max(train_outputs, 1)
                     train_pred = train_pred.cpu().numpy()
                     y_train_np = y_train.cpu().numpy() if hasattr(y_train, 'cpu') else y_train
                     
                     # Get predictions for validation set
-                    X_val_tensor = X_val.squeeze(0).unsqueeze(1).to(utils.device())
-                    val_outputs = self(X_val_tensor)
+                    X_val_device = X_val.to(utils.device())
+                    val_outputs = self(X_val_device)
                     _, val_pred = torch.max(val_outputs, 1)
                     val_pred = val_pred.cpu().numpy()
                     y_val_np = y_val.cpu().numpy() if hasattr(y_val, 'cpu') else y_val
@@ -488,7 +613,7 @@ class CNNModel(nn.Module, BaseModel):
                 break
 
             if epoch % (config.epochs // 10) == 0:  # Print every 10% of training
-                print(f'Epoch [{epoch}/{config.epochs}], Loss: {total_loss/(len(train_loader) + len(val_loader)):.4f}')
+                print(f'Epoch [{epoch}/{config.epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
         
 
         print("\nTraining complete!")
@@ -526,9 +651,11 @@ class CNNModel(nn.Module, BaseModel):
         if not self.is_initialized:
             raise RuntimeError("Model not initialized. Call create_model() first.")
         
-        # Convert to tensor if needed
-        if not isinstance(X_test, torch.Tensor):
-            X_test = torch.tensor(X_test, dtype=torch.float32)
+        # Preprocess input data to handle different formats from notebook
+        X_test = self._preprocess_input_data(X_test, "test data")
+        
+        # Move to device
+        X_test = X_test.to(utils.device())
         
         self.eval()  # Set to evaluation mode
         with torch.no_grad(): # without modifying gradients
@@ -537,11 +664,66 @@ class CNNModel(nn.Module, BaseModel):
             if return_proba:
                 # Return probabilities
                 probabilities = torch.softmax(outputs, dim=1)
-                return probabilities.numpy()
+                return probabilities.cpu().numpy()
             else:
                 # Return class predictions
                 _, predicted = torch.max(outputs, 1)
-                return predicted.numpy()
+                return predicted.cpu().numpy()
+    
+    def evaluate(self, X_test, y_test) -> dict:
+        """Evaluate the CNN model using custom predict method."""
+        # Define default metrics dictionary - 0.0 for most metrics, 0.5 for ROC AUC (random chance)
+        metric_names = ["accuracy", "precision", "recall", "F1 (Macro)", "F1 (Micro)", "ROC AUC"]
+        metrics = {name: (0.5 if name == "ROC AUC" else 0.0) for name in metric_names}
+        
+        if not self.is_initialized:
+            return metrics
+        
+        # Get predictions using CNN's custom predict method
+        y_pred = self.predict(X_test, return_proba=False)
+        
+        # Ensure we have valid predictions
+        if len(y_pred) == 0 or len(y_test) == 0:
+            return metrics
+        
+        # Convert y_test to numpy if needed
+        if hasattr(y_test, 'cpu'):
+            y_test = y_test.cpu().numpy()
+        elif hasattr(y_test, 'numpy'):
+            y_test = y_test.numpy()
+        
+        # Calculate basic accuracy
+        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+        import warnings
+        
+        accuracy = accuracy_score(y_test, y_pred)
+        metrics["accuracy"] = accuracy
+        
+        # Calculate advanced metrics safely
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                
+                unique_true = np.unique(y_test)
+                unique_pred = np.unique(y_pred)
+                
+                if len(unique_true) > 1 and len(unique_pred) > 1:
+                    metrics["precision"] = precision_score(y_test, y_pred, average='weighted', zero_division=0)
+                    metrics["recall"] = recall_score(y_test, y_pred, average='weighted', zero_division=0)
+                    metrics["F1 (Macro)"] = f1_score(y_test, y_pred, average='macro', zero_division=0)
+                    metrics["F1 (Micro)"] = f1_score(y_test, y_pred, average='micro', zero_division=0)
+                    
+                    # ROC AUC for multi-class
+                    try:
+                        y_proba = self.predict(X_test, return_proba=True)
+                        if y_proba.shape[1] > 1:
+                            metrics["ROC AUC"] = roc_auc_score(y_test, y_proba, average='weighted', multi_class='ovr')
+                    except (ValueError, IndexError):
+                        pass
+        except Exception:
+            pass
+        
+        return metrics
     
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
@@ -555,8 +737,25 @@ class CNNModel(nn.Module, BaseModel):
             'optimizer': ParamSpace.categorical(choices=['AdamW', 'Adam', 'SGD'], default='AdamW'), # For SGD, momentum is fixed at 0.9
         }
 
+    def set_params(self, **params):
+        """Set parameters by recreating the model with new parameters"""
+        self.create_model(**params)
+        return self
+
     @property
     def is_initialized(self) -> bool:
         return hasattr(self, 'features') and hasattr(self, 'model')
+    
+    def _has_trained_weights(self) -> bool:
+        """Check if the model has been trained (weights differ from initialization)."""
+        if not self.is_initialized:
+            return False
+        
+        # Check if any parameter has significantly non-zero values
+        # (untrained models typically have small random values)
+        for param in self.parameters():
+            if param.abs().mean() > 0.1:  # Threshold for "trained" weights
+                return True
+        return False
 
 

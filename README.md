@@ -82,3 +82,5 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 3. Run `data_explorer.py` to view details of processed images from different API endpoints. 
    * Note: You may need to use a client such as Postman to launch those API requests. 
    * Note: Refer to [`openapi.yaml`](openapi.yaml) for more detailed descriptions of those endpoints. 
+### Model Training with a Customized Tuning Process
+* A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\model_training_flow.ipynb`, including: a shorter demo with less data, data and model loading processes, an exhaustive tuning (without metaheuristics) on only the validation set, training and evaluating on the best found set of hyperparameters for each model.  
