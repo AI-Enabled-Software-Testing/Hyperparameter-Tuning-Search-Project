@@ -532,7 +532,12 @@ class CNNModel(nn.Module, BaseModel):
             num_workers=0,  # Set to 0 for Windows compatibility
             pin_memory=utils.is_cuda()
         )
-
+        
+        X_train = torch.tensor(np.array(X_train), dtype=torch.float32)
+        X_val = torch.tensor(np.array(X_val), dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.long)
+        y_val = torch.tensor(y_val, dtype=torch.long)
+        
         # Setup optimizer and loss first (before scheduler)
         match config.optimizer:
             case 'AdamW': # AdamW optimizer with weight decay
@@ -613,7 +618,7 @@ class CNNModel(nn.Module, BaseModel):
                 break
 
             if epoch % (config.epochs // 10) == 0:  # Print every 10% of training
-                print(f'Epoch [{epoch}/{config.epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+                print(f'Epoch [{epoch}/{config.epochs}], Loss: {total_loss/(len(train_loader) + len(val_loader)):.4f}')
         
 
         print("\nTraining complete!")
