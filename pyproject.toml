@@ -13,6 +13,9 @@ dependencies = [
     "torch>=2.9.0",
     "uvicorn>=0.38.0",
     "matplotlib>=3.7.0",
+    "pip>=25.3",
+    "ipykernel>=7.1.0",
+    "jupyter>=1.1.1",
 ]
 
 [dependency-groups]

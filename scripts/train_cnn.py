@@ -8,7 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models.cnn import CNNModel, TrainingConfig
-from framework.data_utils import load_cifar10_data, prepare_data
+from framework.data_utils import load_cifar10_data, prepare_data, split_train_val, create_dataloaders
+from framework.training import train_epoch, validate, EarlyStopping, Checkpoint
 from framework import utils
 from framework.utils import init_device, count_parameters
 
@@ -94,9 +95,9 @@ def train_model(args, writer: SummaryWriter):
     for epoch in range(1, args.epochs + 1):
         print(f"\nEpoch {epoch}/{args.epochs}")
         train_loss, train_acc = train_epoch(
-            model, train_loader, criterion, optimizer, utils.device(), scheduler=scheduler, aim_run=aim_run, epoch=epoch
+            model, train_loader, criterion, optimizer, utils.device(), scheduler=scheduler, epoch=epoch
         )
-        val_loss, val_acc = validate(model, val_loader, criterion, utils.device(), aim_run=aim_run, epoch=epoch)
+        val_loss, val_acc = validate(model, val_loader, criterion, utils.device(), epoch=epoch)
         
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc*100:.2f}%)")
         print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f} ({val_acc*100:.2f}%)")
@@ -104,30 +105,14 @@ def train_model(args, writer: SummaryWriter):
         if checkpoint.save_if_better(model, optimizer, epoch, val_acc, train_acc):
             print(f"Saved best model (val_acc={val_acc:.4f}) to {args.model_path}")
 
-        if early_stopper(val_loss, val_acc):
+        if early_stopper(val_loss):
             print(f"\nEarly stopping at {epoch}")
-            print(f"Best val acc: {early_stopper.best_acc:.4f} ({early_stopper.best_acc*100:.2f}%)")
+            print(f"Best val acc: {checkpoint.best_val_acc:.4f} ({checkpoint.best_val_acc*100:.2f}%)")
             break
 
 
     print("\nTraining complete!")
-    print(f"Best val acc: {results['best_val_acc']:.4f} ({results['best_val_acc']*100:.2f}%)")
-
-
-def main():
-    args = parse_args()
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = Path(f".cache/tensorboard/cifar10_cnn_training/run_{timestamp}")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Create TensorBoard SummaryWriter
-    writer = SummaryWriter(log_dir=str(log_dir))
-    
-    try:
-        train_model(args, writer)
-    finally:
-        writer.close()
+    print(f"Best val acc: {checkpoint.best_val_acc:.4f} ({checkpoint.best_val_acc*100:.2f}%)")
 
 
 def main():
