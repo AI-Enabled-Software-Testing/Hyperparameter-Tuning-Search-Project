@@ -84,6 +84,9 @@ def train_epoch(
     epoch: int,
     grad_clip_norm: float,
     writer: SummaryWriter
+    epoch: int = 0,
+    grad_clip_norm: float = 1.0,
+    writer: Optional[SummaryWriter] = None
 ) -> Tuple[float, float]:
     """Trains the model for one epoch and returns the epoch loss and accuracy."""
     # Use super() to call PyTorch's train() method directly, bypassing custom train() override
@@ -107,16 +110,27 @@ def train_epoch(
         loss_value = loss.item()  # Single GPU->CPU sync
         running_loss += loss_value
         
+        # Stats - compute once and reuse to avoid duplicate .item() calls
+        loss_value = loss.item()  # Single GPU->CPU sync
+        running_loss += loss_value
+        
         _, predicted = torch.max(outputs.data, 1)
         batch_correct = (predicted == labels).sum().item()  # Single GPU->CPU sync
+        batch_correct = (predicted == labels).sum().item()  # Single GPU->CPU sync
         total += labels.size(0)
+        correct += batch_correct
         correct += batch_correct
 
         # Track metrics
         if batch_idx % 10 == 0 and writer is not None:
+        if batch_idx % 10 == 0 and writer is not None:
             batch_total = labels.size(0)
             batch_acc = 100 * batch_correct / batch_total
             current_lr = optimizer.param_groups[0]['lr']
+            step = epoch * len(train_loader) + batch_idx
+            writer.add_scalar('train/batch_loss', loss_value, step)
+            writer.add_scalar('train/batch_accuracy', batch_acc, step)
+            writer.add_scalar('train/learning_rate', current_lr, step)
             step = epoch * len(train_loader) + batch_idx
             writer.add_scalar('train/batch_loss', loss_value, step)
             writer.add_scalar('train/batch_accuracy', batch_acc, step)
@@ -135,6 +149,15 @@ def train_epoch(
             if param.grad is not None:
                 writer.add_histogram(f'train/params/{name}', param.data, epoch)
                 writer.add_histogram(f'train/grads/{name}', param.grad.data, epoch)
+    if writer is not None:
+        writer.add_scalar('train/epoch_loss', epoch_loss, epoch)
+        writer.add_scalar('train/epoch_accuracy', epoch_acc * 100, epoch)
+    
+    # Log parameter and gradient histograms (only every N epochs to reduce CPU overhead)
+    if writer is not None and (epoch % 10 == 0 or epoch == 1):  # Log every 10 epochs or first epoch
+        for name, param in model.named_parameters():
+            writer.add_histogram(f'train_params/{name}', param.data, epoch)
+            writer.add_histogram(f'train_grads/{name}', param.grad.data, epoch)
 
     return epoch_loss, epoch_acc
 
@@ -146,6 +169,8 @@ def validate(
     device: torch.device,
     epoch: int,
     writer: SummaryWriter
+    epoch: int = 0,
+    writer: Optional[SummaryWriter] = None
 ) -> Tuple[float, float]:
     """Validates the model and returns the epoch loss and accuracy."""
     model.eval()
@@ -168,8 +193,9 @@ def validate(
     epoch_loss = running_loss / len(val_loader)
     epoch_acc = correct / total
 
-    writer.add_scalar('val/epoch_loss', epoch_loss, epoch)
-    writer.add_scalar('val/epoch_accuracy', epoch_acc * 100, epoch)
+    if writer is not None:
+        writer.add_scalar('val/epoch_loss', epoch_loss, epoch)
+        writer.add_scalar('val/epoch_accuracy', epoch_acc * 100, epoch)
 
     return epoch_loss, epoch_acc
 

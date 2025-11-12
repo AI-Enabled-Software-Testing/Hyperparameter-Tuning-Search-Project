@@ -1,6 +1,8 @@
 import argparse
 from pathlib import Path
 from datetime import datetime
+import torch.nn as nn
+import torch.optim as optim
 import sys
 from torch.utils.tensorboard import SummaryWriter
 
@@ -59,7 +61,13 @@ def train_model(args, writer: SummaryWriter):
 
     print("Preparing training data...")
     X_all, y_all = prepare_data(ds_dict, "train")
-    print(f"Total training samples: {len(X_all)}")
+    X_train, y_train, X_val, y_val = split_train_val(X_all, y_all, val_ratio=val_ratio)
+    print(f"Train samples: {len(X_train)}, Val samples: {len(X_val)}")
+
+    train_loader, val_loader = create_dataloaders(
+        X_train, y_train, X_val, y_val, batch_size=args.batch_size
+    )
+    
 
     model = CNNModel(num_classes)
     model.create_model() 
@@ -68,55 +76,58 @@ def train_model(args, writer: SummaryWriter):
     total_params, trainable_params = count_parameters(model)
     print(f"Total parameters: {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=weight_decay)
     
-    # Log hyperparameters to TensorBoard
-    hparams = {
-        'epochs': args.epochs,
-        'batch_size': args.batch_size,
-        'learning_rate': args.lr,
-        'optimizer': 'AdamW',
-        'weight_decay': weight_decay,
-        'scheduler': 'OneCycleLR',
-        'val_ratio': val_ratio,
-        'num_classes': num_classes,
-        'total_parameters': total_params,
-        'trainable_parameters': trainable_params,
-    }
-    
-    cifar10_class_names = [
-        'airplane', 'automobile', 'bird', 'cat', 'deer',
-        'dog', 'frog', 'horse', 'ship', 'truck'
-    ]
-    
-    # Create training configuration
-    config = TrainingConfig(
-        writer=writer,
-        weight_decay=weight_decay,
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=args.lr,
         epochs=args.epochs,
-        learning_rate=args.lr,
-        batch_size=args.batch_size,
-        optimizer='AdamW',
-        val_ratio=val_ratio,
-        checkpoint_path=args.model_path,
-        early_stopping_min_delta=0.001,
-        class_names=cifar10_class_names
+        steps_per_epoch=len(train_loader),
     )
     
-    # Train using the model's train() method with TensorBoard writer
-    # The model will split X_all into train/val internally
-    results = model.train(X_all, y_all, config)
-    
-    # Log hyperparameters with final metrics
-    if writer is not None:
-        metrics = {
-            'best_val_acc': results['best_val_acc'],
-            'final_train_acc': results['final_train_acc'],
-            'final_val_acc': results['final_val_acc'],
-        }
-        writer.add_hparams(hparams, metrics)
+    early_stopper = EarlyStopping(patience=15, min_delta=0.001)
+    checkpoint = Checkpoint(args.model_path)
+
+    # Training loop
+    for epoch in range(1, args.epochs + 1):
+        print(f"\nEpoch {epoch}/{args.epochs}")
+        train_loss, train_acc = train_epoch(
+            model, train_loader, criterion, optimizer, utils.device(), scheduler=scheduler, aim_run=aim_run, epoch=epoch
+        )
+        val_loss, val_acc = validate(model, val_loader, criterion, utils.device(), aim_run=aim_run, epoch=epoch)
+        
+        print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc*100:.2f}%)")
+        print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f} ({val_acc*100:.2f}%)")
+        
+        if checkpoint.save_if_better(model, optimizer, epoch, val_acc, train_acc):
+            print(f"Saved best model (val_acc={val_acc:.4f}) to {args.model_path}")
+
+        if early_stopper(val_loss, val_acc):
+            print(f"\nEarly stopping at {epoch}")
+            print(f"Best val acc: {early_stopper.best_acc:.4f} ({early_stopper.best_acc*100:.2f}%)")
+            break
+
 
     print("\nTraining complete!")
     print(f"Best val acc: {results['best_val_acc']:.4f} ({results['best_val_acc']*100:.2f}%)")
+
+
+def main():
+    args = parse_args()
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = Path(f".cache/tensorboard/cifar10_cnn_training/run_{timestamp}")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create TensorBoard SummaryWriter
+    writer = SummaryWriter(log_dir=str(log_dir))
+    
+    try:
+        train_model(args, writer)
+    finally:
+        writer.close()
 
 
 def main():
