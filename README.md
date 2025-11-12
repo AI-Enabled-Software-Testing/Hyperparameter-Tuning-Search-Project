@@ -82,5 +82,32 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 3. Run `data_explorer.py` to view details of processed images from different API endpoints. 
    * Note: You may need to use a client such as Postman to launch those API requests. 
    * Note: Refer to [`openapi.yaml`](openapi.yaml) for more detailed descriptions of those endpoints. 
+### Quick Model Training
+You can quickly train a CNN model on CIFAR-10 using the provided training script:
+
+```bash
+# Basic training with default parameters (300 epochs)
+python scripts/train_cnn.py
+
+# Quick training with fewer epochs for testing
+python scripts/train_cnn.py --epochs 10 --batch-size 64
+
+# Custom training with specific hyperparameters
+python scripts/train_cnn.py --epochs 50 --batch-size 128 --lr 0.001 --model-path .cache/models/my_cnn.pth
+```
+
+**Available arguments:**
+- `--epochs`: Number of training epochs (default: 300)
+- `--batch-size`: Batch size for training (default: 128)
+- `--lr`: Learning rate (default: 0.0003)
+- `--model-path`: Path to save the trained model (default: .cache/models/cnn_cifar.pth)
+- `--device`: Force device selection (cuda/cpu, auto-detects if not specified)
+
+The script includes:
+- Automatic CIFAR-10 data loading and preprocessing
+- TensorBoard logging for training visualization
+- Early stopping and model checkpointing
+- CUDA support with automatic device detection
+
 ### Model Training with a Customized Tuning Process
 * A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\model_training_flow.ipynb`, including: a shorter demo with less data, data and model loading processes, an exhaustive tuning (without metaheuristics) on only the validation set, training and evaluating on the best found set of hyperparameters for each model.  
