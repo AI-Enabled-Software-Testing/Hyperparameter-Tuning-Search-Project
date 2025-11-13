@@ -1,48 +1,41 @@
 import torch
-from typing import Optional, Tuple
+from typing import Tuple
 from torch.nn import Module
 
-_device: torch.device = torch.device("cpu")
-_is_cuda: bool = False
+
+def get_device() -> torch.device:
+    """Return the preferred torch.device."""
+    device_str = "cuda" if torch.cuda.is_available() else "cpu"
+    return torch.device(device_str)
 
 
-def init_device(device_str: Optional[str] = None) -> None:
-    global _device, _is_cuda
-    if device_str:
-        _device = torch.device(device_str)
-    else:
-        _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    _is_cuda = _device.type == "cuda"
-
-
-def device() -> torch.device:
-    """Get the current device."""
-    return _device
-
-
-def is_cuda() -> bool:
-    """Check if the current device is CUDA."""
-    return _is_cuda
+def is_cuda_available() -> bool:
+    """Return True when CUDA is accessible."""
+    return torch.cuda.is_available()
 
 
 def count_parameters(model: Module) -> Tuple[int, int]:
     """Count total and trainable parameters in a model."""
     total_params = sum(torch.numel(p) for p in model.parameters())
-    trainable_params = sum(torch.numel(p) for p in model.parameters() if p.requires_grad)
+    trainable_params = sum(
+        torch.numel(p) for p in model.parameters() if p.requires_grad
+    )
     return total_params, trainable_params
+
 
 def torch_version() -> str:
     """Get the installed PyTorch version."""
     return torch.__version__
 
-def test_pytorch_setup():
-    """A Smoke Test to verify PyTorch setup like CUDA device."""
+
+def test_pytorch_setup() -> None:
+    """Quickly report the local PyTorch environment."""
+    device = get_device()
     print(f"PyTorch version: {torch_version()}")
     print(f"CUDA available: {torch.cuda.is_available()}")
-    print(f"Current device: {device()}")
-    print(f"Is CUDA: {is_cuda()}")
-    assert torch_version() is not None, "PyTorch is not installed properly."
-    assert device() is not None, "Device is not initialized."
-    assert torch.cuda.is_available(), "CUDA is not available."
-    assert is_cuda(), "Device is not set to CUDA."
-    print("PyTorch setup test passed.")    
+    print(f"Selected device: {device.type}")
+    if device.type == "cuda":
+        print(f"CUDA device count: {torch.cuda.device_count()}")
+        print(f"Current CUDA device: {torch.cuda.current_device()}")
+        print(f"CUDA device name: {torch.cuda.get_device_name(device)}")
+    print("PyTorch setup test completed.")

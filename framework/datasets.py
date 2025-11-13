@@ -18,4 +18,3 @@ class CIFAR10Dataset(Dataset):
         image = torch.from_numpy(image).unsqueeze(0)
 
         return image, label
-
