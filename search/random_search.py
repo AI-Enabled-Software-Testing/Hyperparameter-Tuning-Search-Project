@@ -73,9 +73,7 @@ class RandomSearch(Optimizer):
                 for metric_name, value in metrics.items():
                     if isinstance(value, (int, float)):
                         writer.add_scalar(f"metrics/{metric_name}", value, trial)
-                writer.add_text(
-                    "params/json", json.dumps(params, default=str), trial
-                )
+                writer.add_text("params/json", json.dumps(params, default=str), trial)
             if score > best_score:
                 best_score = score
                 best_params = params

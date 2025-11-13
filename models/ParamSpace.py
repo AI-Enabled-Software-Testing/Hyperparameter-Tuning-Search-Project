@@ -30,21 +30,21 @@ class ParamSpace:
                 raise ValueError("choices required for categorical parameters")
 
     @classmethod
-    def integer(cls, min_val: int, max_val: int, default: int = None):
+    def integer(cls, min_val: int, max_val: int, default: int):
         """Create an integer parameter space"""
         return cls(ParamType.INTEGER, min_val, max_val, default=default)
 
     @classmethod
-    def float_range(cls, min_val: float, max_val: float, default: float = None):
+    def float_range(cls, min_val: float, max_val: float, default: float):
         """Create a float parameter space"""
         return cls(ParamType.FLOAT, min_val, max_val, default=default)
 
     @classmethod
-    def categorical(cls, choices: List[Any], default: Any = None):
+    def categorical(cls, choices: List[Any], default: Any):
         """Create a categorical parameter space"""
         return cls(ParamType.CATEGORICAL, choices=choices, default=default)
 
     @classmethod
-    def boolean(cls, default: bool = None):
+    def boolean(cls, default: bool):
         """Create a boolean parameter space"""
         return cls(ParamType.BOOLEAN, choices=[True, False], default=default)

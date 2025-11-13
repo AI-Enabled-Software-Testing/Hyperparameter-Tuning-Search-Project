@@ -28,11 +28,11 @@ def build_transform_pipeline():
 def process_dataset(
     src_dir: Path, dst_dir: Path, transform_batch: Callable[[List], List]
 ) -> None:
-    ds_dict: DatasetDict = load_from_disk(str(src_dir))
+    ds_dict = load_from_disk(str(src_dir))
+    assert isinstance(ds_dict, DatasetDict)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    # cifar10 uses 'img' but 'mnist' uses 'images'
-    # we standardize to just 'image'
+    # cifar10 uses 'img', we standardize to 'image'
     for split, ds in ds_dict.items():
         ds: Dataset = ds  # type annotation for ds
         if "img" in ds.features:
@@ -63,7 +63,7 @@ def main() -> None:
     out_root = repo_root / ".cache" / "processed_datasets"
     out_root.mkdir(parents=True, exist_ok=True)
 
-    datasets_to_process = ["cifar10", "mnist"]
+    datasets_to_process = ["cifar10"]
     transform_batch = build_transform_pipeline()
     for name in datasets_to_process:
         src = base_root / name

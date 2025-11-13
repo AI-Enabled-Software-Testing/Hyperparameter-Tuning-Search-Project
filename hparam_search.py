@@ -104,7 +104,7 @@ def evaluate_model(
         )
 
         device = get_device()
-        train_stats = model.train(
+        model.train(
             train_loader, val_loader, config=config, device=device
         )
 

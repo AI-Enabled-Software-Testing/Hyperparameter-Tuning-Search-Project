@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, Any
 import numpy as np
-from datasets import load_from_disk, Dataset, DatasetDict
+from datasets import load_from_disk, DatasetDict
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from PIL import Image
@@ -44,7 +44,8 @@ def pil_to_np(image_pil):
 
 
 def load_dataset_info(dataset_path: Path) -> Dict[str, Any]:
-    ds_dict: DatasetDict = load_from_disk(str(dataset_path))
+    ds_dict = load_from_disk(str(dataset_path))
+    assert isinstance(ds_dict, DatasetDict), "Dataset must be a DatasetDict"
     info = {
         "name": dataset_path.name,
         "splits": list(ds_dict.keys()),
@@ -148,7 +149,7 @@ async def list_datasets():
 @app.get("/api/datasets/{dataset_type}/{dataset_name}")
 async def get_dataset_info(
     dataset_type: Literal["base", "processed"],
-    dataset_name: Literal["mnist", "cifar10"],
+    dataset_name: Literal["cifar10"],
 ):
     if dataset_type not in ["base", "processed"]:
         raise HTTPException(status_code=400, detail="Invalid dataset type")
@@ -162,7 +163,7 @@ async def get_dataset_info(
 @app.get("/api/datasets/{dataset_type}/{dataset_name}/{split}")
 async def get_dataset_samples(
     dataset_type: Literal["base", "processed"],
-    dataset_name: Literal["mnist", "cifar10"],
+    dataset_name: Literal["cifar10"],
     split: Literal["train", "test"],
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
@@ -175,19 +176,15 @@ async def get_dataset_samples(
     repo_root = Path(__file__).resolve().parents[1]
     dataset_path = repo_root / ".cache" / f"{dataset_type}_datasets" / dataset_name
 
-    ds_dict: DatasetDict = load_from_disk(str(dataset_path))
+    ds_dict = load_from_disk(str(dataset_path))
+    assert isinstance(ds_dict, DatasetDict)
 
     if split not in ds_dict:
         raise HTTPException(status_code=404, detail="Split not found")
 
-    ds: Dataset = ds_dict[split]
+    ds = ds_dict[split]
 
-    image_col = None
-    if "img" in ds.features:
-        ds = ds.rename_column("img", "image")
-        image_col = "image"
-    elif "image" in ds.features:
-        image_col = "image"
+    image_col = "image"
 
     # Extract class names from ClassLabel feature if available
     class_names = None
