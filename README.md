@@ -5,11 +5,6 @@ This project aims to explore and analyze metaheuristic search-based algorithms f
 This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%20Kelvin.pdf).
 
 ## Datasets
-* [MNIST](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.fetch_openml.html)
-    * Handwritten Digit Recognition
-    * Using scikit-learn's fetch_openml
-    * 28x28 Grayscale Images
-    * 10 Classes of digits (0-9)
 * [CIFAR-10](https://www.cs.toronto.edu/~kriz/cifar.html)
     * Object Recognition
     * 32x32 Colored Images
@@ -18,8 +13,7 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 
 ## Models in Consideration
 * **Tree-based Model**: Decision Tree
-* **Linear/Polynomial-based**: Linear Regression (optional)
-* **Permutation-based** (especially, neural networks): Multi-Layer Perceptron (MLP)
+* **(Pixels) Permutation-based** (especially, neural networks): Convolutional Neural Network (CNN)
 * **Kernel-based**: K-Nearest-Neighbor (KNN)
 
 ## Metaheuristic Guided Search
