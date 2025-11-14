@@ -1,7 +1,7 @@
 import argparse
 import shutil
 from pathlib import Path
-from datasets import load_dataset
+from datasets import DatasetDict, load_dataset
 
 
 def download_dataset(repo_id: str, destination: Path, force: bool) -> None:
@@ -9,6 +9,7 @@ def download_dataset(repo_id: str, destination: Path, force: bool) -> None:
         shutil.rmtree(destination)
     destination.mkdir(parents=True, exist_ok=True)
     ds = load_dataset(repo_id)
+    assert isinstance(ds, DatasetDict)
     ds.save_to_disk(str(destination))
 
 
@@ -28,8 +29,3 @@ if __name__ == "__main__":
     cifar10_dir = datasets_root / "cifar10"
     print(f"Downloading CIFAR-10 (uoft-cs/cifar10) to {cifar10_dir}...")
     download_dataset("uoft-cs/cifar10", cifar10_dir, args.force)
-
-    # MNIST
-    mnist_dir = datasets_root / "mnist"
-    print(f"Downloading MNIST (ylecun/mnist) to {mnist_dir}...")
-    download_dataset("ylecun/mnist", mnist_dir, args.force)
