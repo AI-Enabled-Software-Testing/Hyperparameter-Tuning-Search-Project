@@ -6,19 +6,14 @@ from typing import Any, Dict, Literal
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from framework.data_utils import (
-    create_dataloaders,
     load_cifar10_data,
     prepare_data,
     split_train_val,
 )
-from framework.datasets import CIFAR10Dataset
-from framework.utils import get_device
 from models.base import get_model_by_name
-from models.cnn import TrainingConfig
 from search import RandomSearch
 
 RANDOM_SEED = 321
@@ -81,42 +76,14 @@ def evaluate_model(
         return model.evaluate(data["val_flat"], data["val_labels"])
 
     if model_key == "cnn":
-        # Architecture specific parameters
-        architecture = {k: params[k] for k in ("kernel_size", "stride")}
-        model.create_model(**architecture)
-
-        # Training specific parameters
-        batch_size = int(params["batch_size"])
-        config = TrainingConfig(
-            epochs=DEFAULT_EPOCHS,
-            learning_rate=float(params["learning_rate"]),
-            weight_decay=float(params["weight_decay"]),
-            optimizer=params["optimizer"],
-            patience=DEFAULT_PATIENCE,
-            batch_size=batch_size,
-        )
-        train_loader, val_loader = create_dataloaders(
+        model.create_model(**params)
+        model.train(
             data["train_images"],
             data["train_labels"],
             data["val_images"],
             data["val_labels"],
-            batch_size=batch_size,
         )
-
-        device = get_device()
-        model.train(
-            train_loader, val_loader, config=config, device=device
-        )
-
-        eval_loader = DataLoader(
-            CIFAR10Dataset(data["val_images"], data["val_labels"]),
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=0,
-            pin_memory=torch.cuda.is_available(),
-        )
-        eval_metrics = model.evaluate(eval_loader, device=device)
-        return eval_metrics
+        return model.evaluate(data["val_images"], data["val_labels"])
 
     raise ValueError(f"Unsupported model key: {model_key}")
 

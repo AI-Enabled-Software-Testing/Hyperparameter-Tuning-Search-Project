@@ -8,13 +8,12 @@ from torch.utils.tensorboard import SummaryWriter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from framework.data_utils import (
-    create_dataloaders,
     load_cifar10_data,
     prepare_data,
     split_train_val,
 )
 from framework.utils import get_device, test_pytorch_setup
-from models.cnn import CNNModel, TrainingConfig
+from models.cnn import CNNModel
 
 
 def parse_args():
@@ -114,33 +113,31 @@ def train_model(args, writer: SummaryWriter):
     )
     print(f"Train samples: {len(X_train)}, Val samples: {len(X_val)}")
 
-    train_loader, val_loader = create_dataloaders(
+    model = CNNModel(num_classes=num_classes)
+    # Pass hyperparameters via create_model (stored in model.params)
+    model.create_model(
+        learning_rate=args.lr,
+        weight_decay=args.weight_decay,
+        optimizer=args.optimizer,
+        batch_size=args.batch_size,
+    )
+
+    test_pytorch_setup()
+    # train() creates DataLoaders internally using batch_size from model.params
+    results = model.train(
         X_train,
         y_train,
         X_val,
         y_val,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-    )
-
-    model = CNNModel(num_classes=num_classes)
-    model.create_model()
-
-    config = TrainingConfig(
+        device=device,
         epochs=args.epochs,
-        learning_rate=args.lr,
-        weight_decay=args.weight_decay,
-        optimizer=args.optimizer,
         patience=args.patience,
         min_delta=args.min_delta,
         checkpoint_path=Path(args.checkpoint_path),
         grad_clip_norm=args.grad_clip,
-        batch_size=args.batch_size,
         writer=writer,
+        num_workers=args.num_workers,
     )
-
-    test_pytorch_setup()
-    results = model.train(train_loader, val_loader, config=config, device=device)
 
     print("\nTraining complete!")
     print(

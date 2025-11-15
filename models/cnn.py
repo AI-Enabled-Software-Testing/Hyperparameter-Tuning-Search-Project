@@ -2,14 +2,17 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from framework.data_utils import create_dataloaders
+from framework.datasets import CIFAR10Dataset
 from framework.training import Checkpoint, EarlyStopping, train_epoch, validate
 from framework.utils import count_parameters, get_device
 from .ParamSpace import ParamSpace
@@ -106,17 +109,47 @@ class CNNModel(BaseModel):
 
     def train(
         self,
-        train_loader: DataLoader,
-        val_loader: DataLoader,
-        config: Optional[TrainingConfig] = None,
+        X_train: List[np.ndarray],
+        y_train: np.ndarray,
+        X_val: List[np.ndarray],
+        y_val: np.ndarray,
         device: Optional[torch.device] = None,
+        epochs: Optional[int] = None,
+        patience: Optional[int] = None,
+        min_delta: Optional[float] = None,
+        checkpoint_path: Optional[Path] = None,
+        grad_clip_norm: Optional[float] = None,
+        writer: Optional[SummaryWriter] = None,
+        num_workers: int = 2,
     ) -> Dict[str, float]:
         if self.network is None:
             raise RuntimeError("Train called before model is initialized")
         device = device or get_device()
         self.network = self.network.to(device)
 
-        config = config or TrainingConfig()
+        default_config = TrainingConfig()
+        config = TrainingConfig(
+            learning_rate=float(self.params.get("learning_rate", default_config.learning_rate)),
+            weight_decay=float(self.params.get("weight_decay", default_config.weight_decay)),
+            optimizer=self.params.get("optimizer", default_config.optimizer),
+            batch_size=int(self.params.get("batch_size", default_config.batch_size)),
+            # Infrastructure params: use provided values or defaults
+            epochs=epochs if epochs is not None else default_config.epochs,
+            patience=patience if patience is not None else default_config.patience,
+            min_delta=min_delta if min_delta is not None else default_config.min_delta,
+            checkpoint_path=checkpoint_path if checkpoint_path is not None else default_config.checkpoint_path,
+            grad_clip_norm=grad_clip_norm if grad_clip_norm is not None else default_config.grad_clip_norm,
+            writer=writer if writer is not None else default_config.writer,
+        )
+
+        train_loader, val_loader = create_dataloaders(
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            batch_size=config.batch_size,
+            num_workers=num_workers,
+        )
 
         optimizer = self._build_optimizer(self.network, config)
         scheduler = optim.lr_scheduler.OneCycleLR(
@@ -226,15 +259,28 @@ class CNNModel(BaseModel):
 
     def evaluate(
         self,
-        data_loader: DataLoader,
+        X: List[np.ndarray],
+        y: np.ndarray,
         device: Optional[torch.device] = None,
         criterion: Optional[nn.Module] = None,
+        num_workers: int = 0,
     ) -> Dict[str, float]:
         if self.network is None:
             raise RuntimeError("Evaluate called before model is initialized")
         device = device or get_device()
         network = self.network.to(device)
         network.eval()
+
+        default_config = TrainingConfig()
+        batch_size = int(self.params.get("batch_size", default_config.batch_size))
+        dataset = CIFAR10Dataset(X, y)
+        data_loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=torch.cuda.is_available(),
+        )
 
         criterion = criterion or nn.CrossEntropyLoss()
 
