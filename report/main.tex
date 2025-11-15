@@ -1,0 +1,185 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+ \geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=20mm,
+ top=20mm,
+ }
+ \usepackage{graphicx}
+ \usepackage{titling}
+ \usepackage{amssymb}
+ \usepackage{natbib}
+
+ \title{Testing the Effectiveness, Efficiency, and Stability\\of Search-Based Hyperparameter Optimizers }
+\author{
+    Fernando Berti Cruz Nogueira (abert036@uottawa.ca), 
+    Kelvin Mock (kmock073@uOttawa.ca)
+}
+\date{October 2025}
+ 
+\usepackage{fancyhdr}
+\setlength{\headheight}{12.5pt}
+\addtolength{\topmargin}{-0.5pt}
+\fancypagestyle{plain}{%  the preset of fancyhdr 
+    \fancyhf{} % clear all header and footer fields
+    \fancyfoot[L]{\thedate}
+    \fancyhead[L]{CSI 5186 - AI-enabled Software Verification and Testing, Final Report (Fall 2025)}
+}
+\makeatletter
+\def\@maketitle{%
+  \newpage
+  \null
+  \vskip 1em%
+  \begin{center}%
+  \let \footnote \thanks
+    {\LARGE \@title \par}%
+    \vskip 1em%
+    %{\large \@date}%
+  \end{center}%
+  \par
+  \vskip 1em}
+\makeatother
+
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage[colorlinks=true,citecolor=blue,linkcolor=blue]{hyperref}
+\begin{document}
+\maketitle
+
+\noindent\begin{tabular}{@{}ll}
+    Students & \theauthor\\
+    Lecturer & Dr. Shiva Nejati (snejati@uottawa.ca)
+\end{tabular}
+
+\begin{abstract}
+Hyperparameter optimization is a critical but computationally expensive task for developing effective machine learning models. This report presents an empirical study comparing a Randomized Search (RS) baseline against two representative metaheuristics: a Genetic Algorithm (GA) and Particle Swarm Optimization (PSO). This selection is made to contrast two primary search strategies: global exploration (GA) and local exploitation (PSO). We evaluate the ability of these algorithms to optimize the hyperparameters of three distinct machine learning models (Decision Tree, k-Nearest Neighbors, and a Convolutional Neural Network) on the grayscale CIFAR-10 dataset~\cite{krizhevsky2009learning}. To ensure a fair and balanced assessment we define a composite fitness function. We evaluate the optimizers across three quality attributes: effectiveness (solution quality), efficiency (computational cost), and stability (consistency across runs). The empirical results will be validated using statistical tests to provide statistically grounded conclusions.
+\end{abstract}
+
+\section{Introduction}
+
+The performance of machine learning models often depends on their hyperparameters—high-level configuration variables like learning rate or batch size that control the training process. Finding the optimal set of these configurations, or Hyperparameter Optimization (HPO), is a significant and resource-intensive bottleneck in model development.
+
+HPO can be framed as a software verification problem. In this context, the model is the software under test and a "defect" being a suboptimal hyperparameter configuration that causes the model to fail its performance specifications, such as by exhibiting high loss, poor generalization or unstable training. HPO thus functions as a automated test drivers, searching the configuration space to find a set of hyperparameters that verifies the model's performance against a pre-defined quality specification.
+
+\subsection{Evaluation Criteria}
+
+We evaluate the optimizers across three quality attributes, as defined in the project proposal:
+
+\begin{itemize}
+    \item \textbf{Effectiveness}: The quality of the final solution found (i.e., the best fitness score achieved).
+    \item \textbf{Efficiency}: The computational cost required to find a solution, measured in both fitness evaluations and wall-clock time.
+    \item \textbf{Stability (Consistency)}: The consistency and reliability of the algorithm's performance across multiple independent runs.
+\end{itemize}
+
+\subsection{Research Questions}
+
+This report seeks to answer the following research questions from the project proposal:
+
+\begin{itemize}
+    \item \textbf{RQ1}: How do representative metaheuristic algorithms compare against a randomized search baseline in terms of effectiveness and efficiency when performing HPO prior to training?
+    \item \textbf{RQ2}: What is the difference in performance stability between the selected metaheuristic algorithms and traditional solutions like the randomized search baseline?
+\end{itemize}
+
+\section{Problem Formulation}
+
+\subsection{Objective Function}
+
+HPO is a black-box optimization problem. The objective function $f(\theta)$, which represents the model's performance for a given hyperparameter configuration $\theta$, presents many challenges: it is computationally expensive to evaluate, it is non-differentiable, and the search space $\Theta$ is often complex and of mixed-types (continuous, discrete, and categorical). These properties make HPO suitable for search-based metaheuristic techniques.
+
+\subsection{Algorithm Selection}
+
+\subsubsection{Baseline: Randomized Search}
+
+RS is the standard scientific baseline for HPO. \citet{bergstra2012random} demonstrated empirically that RS is more efficient than Grid Search for HPO, as it does not waste evaluations on unimportant parameters. Therefore, any intelligent algorithm must demonstrate superiority over RS to be considered effective.
+
+\subsubsection{Genetic Algorithm}
+
+TODO
+
+\subsubsection{Particle Swarm Optimization}
+
+PSO models a swarm where individuals are strongly influenced by the single best-found solution. This behaviour leads to rapid convergence, often finding a "good-enough" solution quickly. This same strength can also be a weakness, as it may converge prematurely to a suboptimal solution. The swarm can rapidly cluster around the first local optimum it finds, losing diversity and becoming "stuck" before the true global optimum is found.
+
+\section{Experiment}
+
+\subsection{Models and Dataset}
+
+\subsubsection{Dataset}
+
+We use a grayscale version of CIFAR-10~\cite{krizhevsky2009learning}. RGB images ($32 \times 32$ pixels) are converted to grayscale using $Y = 0.2125R + 0.7154G + 0.0721B$ and normalized to $[0, 1]$.
+
+\subsubsection{Data Split}
+
+\begin{itemize}
+    \item Training Set: 40,000 images.
+    \item Validation Set: 10,000 images (used only for HPO fitness evaluation).
+    \item Test Set: 10,000 images (held out for final model evaluation after HPO is complete).
+\end{itemize} 
+
+\subsubsection{Models}
+
+\begin{itemize}
+    \item Decision Tree (DT)
+    \item K-Nearest Neighbors (KNN)
+    \item Convolutional Neural Network (CNN)
+\end{itemize}
+
+\clearpage
+\subsection{Hyperparameter Search Space}
+
+Table \ref{tab:hparam_space} defines the hyperparameter search space used by all three models.
+
+\begin{table}[htbp]
+\centering
+\caption{Hyperparameter Search Space Definition}
+\label{tab:hparam_space}
+\small
+\begin{tabularx}{\textwidth}{llllX}
+\toprule
+\textbf{Model} & \textbf{Hyperparameter} & \textbf{Type} & \textbf{Range} & \textbf{Justification \& Citation} \\
+\midrule
+\multirow{4}{*}{DT} & criterion & Categorical & \texttt{['gini', 'entropy']} & Standard impurity measures for split quality. \\
+\cmidrule{2-5}
+ & max\_depth & Integer & \texttt{[3, 20]} & Controls tree depth to balance bias/variance. \\
+\cmidrule{2-5}
+ & min\_samples\_split & Integer & \texttt{[2, 20]} & Regularization: min samples required to split a node. \\
+\cmidrule{2-5}
+ & min\_samples\_leaf & Integer & \texttt{[1, 10]} & Regularization: min samples required for a leaf node. \\
+\midrule
+\multirow{3}{*}{KNN} & n\_neighbors & Integer & \texttt{[3, 15]} & Number of neighbors; odd range to prevent ties. \\
+\cmidrule{2-5}
+ & weights & Categorical & \texttt{['uniform', 'distance']} & Weighting function for neighbors ('distance' gives more weight to closer points). \\
+\cmidrule{2-5}
+ & metric & Categorical & \texttt{['minkowski', 'manhattan']} & Distance metric (e.g., L2/Euclidean vs. L1/Manhattan). \\
+\midrule
+\multirow{6}{*}{CNN} & learning\_rate & Float (Log) & \texttt{[1e-5, 1e-2]} & Most critical HP; controls optimizer step size. \\
+\cmidrule{2-5}
+ & batch\_size & Categorical & \texttt{[16, 32, 64, 128]} & Trade-off between gradient stability and memory/speed. \\
+\cmidrule{2-5}
+ & optimizer & Categorical & \texttt{['AdamW', 'SGD']} & Compares modern adaptive (AdamW) vs. classical (SGD) optimizers. \\
+\cmidrule{2-5}
+ & kernel\_size & Integer & \texttt{[3, 5]} & Size of the convolutional filter's receptive field. \\
+\cmidrule{2-5}
+ & stride & Integer & \texttt{[1, 3]} & Step size of convolution; reduces spatial dimension. \\
+\cmidrule{2-5}
+ & weight\_decay & Float & \texttt{[0.0, 0.01]} & L2 egularization parameter to prevent overfitting. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% BEFORE END
+\clearpage
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+
+\clearpage % Ensures the next content starts on a new page
+
+\end{document}
