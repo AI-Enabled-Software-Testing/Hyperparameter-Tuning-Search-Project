@@ -90,14 +90,13 @@ class CNNModel(BaseModel):
         self._input_channels = 1  # grayscale CIFAR-10
 
     def create_model(self, **params) -> None:
-        kernel_size = params.get("kernel_size", 3)
-        stride = params.get("stride", 1)
-        self.params.update(
-            {
-                "kernel_size": kernel_size,
-                "stride": stride,
-            }
-        )
+        # Store all parameters passed in
+        self.params.update(params)
+        
+        # Extract architecture-specific parameters for Backbone creation
+        kernel_size = self.params.get("kernel_size", 3)
+        stride = self.params.get("stride", 1)
+        
         self.network = Backbone(
             in_channels=self._input_channels,
             num_classes=self.num_classes,

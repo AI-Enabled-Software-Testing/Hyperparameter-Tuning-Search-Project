@@ -16,8 +16,8 @@ class KNNModel(BaseModel):
         self.estimator: KNeighborsClassifier | None = None
 
     def create_model(self, **params: Any) -> None:
-        configuration = {**self.params, **params}
-        self.estimator = KNeighborsClassifier(**configuration)
+        self.params.update(params)
+        self.estimator = KNeighborsClassifier(**self.params)
 
     def train(self, X_train, y_train) -> KNeighborsClassifier:
         if self.estimator is None:

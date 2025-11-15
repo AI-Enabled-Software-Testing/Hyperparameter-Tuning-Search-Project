@@ -17,8 +17,8 @@ class DecisionTreeModel(BaseModel):
 
     def create_model(self, **params: Any) -> None:
         """Create the underlying sklearn estimator."""
-        configuration = {**self.params, **params}
-        self.estimator = DecisionTreeClassifier(**configuration)
+        self.params.update(params)
+        self.estimator = DecisionTreeClassifier(**self.params)
 
     def train(self, X_train, y_train) -> DecisionTreeClassifier:
         if self.estimator is None:
