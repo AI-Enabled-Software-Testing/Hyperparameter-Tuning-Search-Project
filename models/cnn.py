@@ -53,15 +53,15 @@ class Backbone(nn.Module):
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             nn.Conv2d(
-                32, 64, kernel_size=min(kernel_size, 3), stride=stride, padding=1
+                32, 64, kernel_size=kernel_size, stride=stride, padding=1
             ),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.Conv2d(
                 64,
                 128,
-                kernel_size=min(kernel_size, 3),
-                stride=max(1, stride - 1),
+                kernel_size=kernel_size,
+                stride=stride,
                 padding=1,
             ),
             nn.BatchNorm2d(128),
@@ -267,12 +267,12 @@ class CNNModel(BaseModel):
             "learning_rate": ParamSpace.float_range(
                 min_val=1e-5, max_val=1e-2, default=3e-4
             ),
-            "batch_size": ParamSpace.integer(min_val=16, max_val=128, default=64),
+            "batch_size": ParamSpace.categorical(choices=[16, 32, 64, 128], default=64),
             "weight_decay": ParamSpace.float_range(
                 min_val=0.0, max_val=0.01, default=1e-3
             ),
             "optimizer": ParamSpace.categorical(
-                choices=["AdamW", "Adam", "SGD"], default="AdamW"
+                choices=["AdamW", "SGD"], default="AdamW"
             ),
         }
 
@@ -282,12 +282,6 @@ class CNNModel(BaseModel):
         match config.optimizer:
             case "AdamW":
                 return optim.AdamW(
-                    network.parameters(),
-                    lr=config.learning_rate,
-                    weight_decay=config.weight_decay,
-                )
-            case "Adam":
-                return optim.Adam(
                     network.parameters(),
                     lr=config.learning_rate,
                     weight_decay=config.weight_decay,

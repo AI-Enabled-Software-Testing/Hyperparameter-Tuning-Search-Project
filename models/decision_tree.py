@@ -80,8 +80,5 @@ class DecisionTreeModel(BaseModel):
             "min_samples_leaf": ParamSpace.integer(min_val=1, max_val=10, default=2),
             "criterion": ParamSpace.categorical(
                 choices=["gini", "entropy"], default="gini"
-            ),
-            "splitter": ParamSpace.categorical(
-                choices=["best", "random"], default="best"
-            ),
+            )
         }

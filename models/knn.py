@@ -68,13 +68,7 @@ class KNNModel(BaseModel):
             "weights": ParamSpace.categorical(
                 choices=["uniform", "distance"], default="uniform"
             ),
-            "algorithm": ParamSpace.categorical(
-                choices=["auto", "ball_tree", "kd_tree", "brute"], default="auto"
-            ),
-            "p": ParamSpace.categorical(
-                choices=[1, 2], default=2
-            ),  # Manhattan and Euclidean distance
             "metric": ParamSpace.categorical(
-                choices=["minkowski", "chebyshev", "manhattan"], default="minkowski"
+                choices=["minkowski", "manhattan"], default="minkowski"
             ),
         }
