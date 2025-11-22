@@ -1,0 +1,24 @@
+\section{Introduction}
+
+The performance of machine learning models often depends on their hyperparameters' high-level configuration variables like learning rate or batch size that control the training process. Finding the optimal set of these configurations, or Hyperparameter Optimization (HPO), is a significant and resource-intensive bottleneck in model development.
+
+HPO can be framed as a software verification problem. In this context, the model is the software under test and a "defect" being a suboptimal hyperparameter configuration that causes the model to fail its performance specifications, such as by exhibiting high loss, poor generalization or unstable training. HPO thus functions as a automated test drivers, searching the configuration space to find a set of hyperparameters that verifies the model's performance against a pre-defined quality specification.
+
+\subsection{Evaluation Criteria}
+
+We evaluate the optimizers across three quality attributes, as defined in the project proposal:
+
+\begin{itemize}
+    \item \textbf{Effectiveness}: The quality of the final solution found (i.e., the best fitness score achieved).
+    \item \textbf{Efficiency}: The computational cost required to find a solution, measured in both fitness evaluations and wall-clock time.
+    \item \textbf{Stability (Consistency)}: The consistency and reliability of the algorithm's performance across multiple independent runs.
+\end{itemize}
+
+\subsection{Research Questions}
+
+This report seeks to answer the following research questions from the project proposal:
+
+\begin{itemize}
+    \item \textbf{RQ1}: How do representative metaheuristic algorithms compare against a randomized search baseline in terms of effectiveness and efficiency when performing HPO prior to training?
+    \item \textbf{RQ2}: What is the difference in performance stability between the selected metaheuristic algorithms and traditional solutions like the randomized search baseline?
+\end{itemize}
