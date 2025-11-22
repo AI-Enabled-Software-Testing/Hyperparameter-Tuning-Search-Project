@@ -44,7 +44,7 @@ class TrainingConfig:
 
 
 class Backbone(nn.Module):
-    """ScaledCNN-based backbone with configurable kernel_size and stride."""
+    """CNN Model Backbone."""
 
     def __init__(
         self,
