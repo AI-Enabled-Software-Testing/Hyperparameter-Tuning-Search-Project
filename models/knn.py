@@ -69,7 +69,22 @@ class KNNModel(BaseModel):
             "recall_weighted": report["weighted avg"]["recall"],
             "f1_weighted": report["weighted avg"]["f1-score"],
         }
-        
+
+        # Add ROC AUC if possible
+        if hasattr(self.estimator, "predict_proba"):
+            try:
+                proba = self.estimator.predict_proba(X_test)
+                if proba.ndim == 2 and proba.shape[1] > 1:
+                    # Check if we have enough classes for ROC AUC calculation
+                    unique_classes = len(set(y_test))
+                    if unique_classes >= 2:
+                        metrics["roc_auc_weighted"] = roc_auc_score(
+                            y_test, proba, average="weighted", multi_class="ovr"
+                        )
+            except (ValueError, Exception) as e:
+                # ROC AUC calculation failed, skip it
+                pass
+
         return metrics
 
     def get_param_space(self) -> Dict[str, ParamSpace]:
