@@ -8,6 +8,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    f1_score,
+    roc_auc_score,
+)
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -34,11 +40,11 @@ class TrainingConfig:
     checkpoint_path: Path = MODEL_PATH
     grad_clip_norm: float = 1.0
     writer: Optional[SummaryWriter] = None
-    batch_size: int = 64
+    batch_size: int = 128
 
 
 class Backbone(nn.Module):
-    """CNN Model Backbone."""
+    """ScaledCNN-based backbone with configurable kernel_size and stride."""
 
     def __init__(
         self,
@@ -48,34 +54,39 @@ class Backbone(nn.Module):
         stride: int = 1,
     ) -> None:
         super().__init__()
-
-        self.features = nn.Sequential(
+        padding = kernel_size // 2
+        self.block1 = nn.Sequential(
             nn.Conv2d(
-                in_channels, 32, kernel_size=kernel_size, stride=stride, padding=1
+                in_channels, 16, kernel_size=kernel_size, stride=stride, padding=padding
+            ),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        self.block2 = nn.Sequential(
+            nn.Conv2d(
+                16, 32, kernel_size=kernel_size, stride=stride, padding=padding
             ),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        self.block3 = nn.Sequential(
             nn.Conv2d(
-                32, 64, kernel_size=kernel_size, stride=stride, padding=1
+                32, 64, kernel_size=kernel_size, stride=stride, padding=padding
             ),
             nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(
-                64,
-                128,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=1,
-            ),
-            nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.AdaptiveAvgPool2d(1),
         )
 
+        self.features = nn.Sequential(self.block1, self.block2, self.block3)
+
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Dropout(),
-            nn.Linear(128, num_classes),
+            nn.Linear(64, num_classes),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -121,6 +132,7 @@ class CNNModel(BaseModel):
         grad_clip_norm: Optional[float] = None,
         writer: Optional[SummaryWriter] = None,
         num_workers: int = 2,
+        verbose: bool = True,
     ) -> Dict[str, float]:
         if self.network is None:
             raise RuntimeError("Train called before model is initialized")
@@ -166,8 +178,9 @@ class CNNModel(BaseModel):
         checkpoint = Checkpoint(str(config.checkpoint_path))
 
         total_params, trainable_params = count_parameters(self.network)
-        print(f"Total parameters: {total_params:,}")
-        print(f"Trainable parameters: {trainable_params:,}")
+        if verbose:
+            print(f"Total parameters: {total_params:,}")
+            print(f"Trainable parameters: {trainable_params:,}")
 
         history = {
             "train_loss": [],
@@ -177,7 +190,8 @@ class CNNModel(BaseModel):
         }
 
         for epoch in range(1, config.epochs + 1):
-            print(f"\nEpoch {epoch}/{config.epochs}")
+            if verbose:
+                print(f"\nEpoch {epoch}/{config.epochs}")
             train_loss, train_acc = train_epoch(
                 self.network,
                 train_loader,
@@ -188,6 +202,7 @@ class CNNModel(BaseModel):
                 epoch=epoch,
                 grad_clip_norm=config.grad_clip_norm,
                 writer=config.writer,
+                verbose=verbose,
             )
             val_loss, val_acc = validate(
                 self.network,
@@ -196,6 +211,7 @@ class CNNModel(BaseModel):
                 device,
                 epoch=epoch,
                 writer=config.writer,
+                verbose=verbose,
             )
 
             history["train_loss"].append(train_loss)
@@ -203,28 +219,32 @@ class CNNModel(BaseModel):
             history["val_loss"].append(val_loss)
             history["val_acc"].append(val_acc)
 
-            print(
-                f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc * 100:.2f}%)"
-            )
-            print(
-                f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f} ({val_acc * 100:.2f}%)"
-            )
+            if verbose:
+                print(
+                    f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc * 100:.2f}%)"
+                )
+                print(
+                    f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f} ({val_acc * 100:.2f}%)"
+                )
 
             if checkpoint.save_if_better(
                 self.network, optimizer, epoch, val_acc, train_acc
             ):
-                print(
-                    f"Saved best model (val_acc={val_acc:.4f}) to {config.checkpoint_path}"
-                )
+                if verbose:
+                    print(
+                        f"Saved best model (val_acc={val_acc:.4f}) to {config.checkpoint_path}"
+                    )
 
             if early_stopper(val_loss, val_acc):
-                print(f"\nEarly stopping at epoch {epoch}")
+                if verbose:
+                    print(f"\nEarly stopping at epoch {epoch}")
                 break
 
-        print("\nTraining complete!")
-        print(
-            f"Best val acc: {checkpoint.best_val_acc:.4f} ({checkpoint.best_val_acc * 100:.2f}%)"
-        )
+        if verbose:
+            print("\nTraining complete!")
+            print(
+                f"Best val acc: {checkpoint.best_val_acc:.4f} ({checkpoint.best_val_acc * 100:.2f}%)"
+            )
 
         return {
             "best_val_acc": checkpoint.best_val_acc,
@@ -285,8 +305,9 @@ class CNNModel(BaseModel):
         criterion = criterion or nn.CrossEntropyLoss()
 
         total_loss = 0.0
-        total_correct = 0
-        total_samples = 0
+        all_predictions = []
+        all_labels = []
+        all_probas = []
 
         with torch.no_grad():
             for images, labels in data_loader:
@@ -297,19 +318,45 @@ class CNNModel(BaseModel):
 
                 total_loss += loss.item()
                 preds = torch.argmax(logits, dim=1)
-                total_correct += (preds == labels).sum().item()
-                total_samples += labels.size(0)
+                probas = torch.softmax(logits, dim=1)
+                
+                all_predictions.extend(preds.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+                all_probas.extend(probas.cpu().numpy())
+
+        y_true = np.array(all_labels)
+        y_pred = np.array(all_predictions)
+        y_proba = np.array(all_probas)
+
+        accuracy = accuracy_score(y_true, y_pred)
+        report = classification_report(
+            y_true, y_pred, output_dict=True, zero_division=0
+        )
+        
+        precision_macro = report["macro avg"]["precision"]
+        recall_macro = report["macro avg"]["recall"]
+        f1_macro = report["macro avg"]["f1-score"]
+        f1_micro = report.get("micro avg", {}).get("f1-score", f1_score(y_true, y_pred, average="micro", zero_division=0))
+        
+        roc_auc = roc_auc_score(y_true, y_proba, average="macro", multi_class="ovr")
 
         avg_loss = total_loss / len(data_loader)
-        accuracy = total_correct / total_samples if total_samples else 0.0
 
-        return {"loss": avg_loss, "accuracy": accuracy}
+        return {
+            "loss": avg_loss,
+            "accuracy": accuracy,
+            "precision_macro": precision_macro,
+            "recall_macro": recall_macro,
+            "f1_macro": f1_macro,
+            "f1_micro": f1_micro,
+            "roc_auc": roc_auc,
+        }
 
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
             "kernel_size": ParamSpace.integer(min_val=3, max_val=5, default=3),
             "stride": ParamSpace.integer(min_val=1, max_val=3, default=1),
-            "learning_rate": ParamSpace.float_range(
+            "learning_rate": ParamSpace.float_log_range(
                 min_val=1e-5, max_val=1e-2, default=3e-4
             ),
             "batch_size": ParamSpace.categorical(choices=[16, 32, 64, 128], default=64),

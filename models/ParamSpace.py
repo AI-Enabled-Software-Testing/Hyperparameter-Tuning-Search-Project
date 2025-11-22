@@ -6,6 +6,7 @@ from enum import Enum
 class ParamType(Enum):
     INTEGER = "integer"
     FLOAT = "float"
+    FLOAT_LOG = "float_log"
     CATEGORICAL = "categorical"
     BOOLEAN = "boolean"
 
@@ -20,11 +21,16 @@ class ParamSpace:
 
     def __post_init__(self):
         """Validate parameter space configuration"""
-        if self.param_type in [ParamType.INTEGER, ParamType.FLOAT]:
+        if self.param_type in [ParamType.INTEGER, ParamType.FLOAT, ParamType.FLOAT_LOG]:
             if self.min_value is None or self.max_value is None:
                 raise ValueError(
                     f"min_value and max_value required for {self.param_type.value}"
                 )
+            if self.param_type == ParamType.FLOAT_LOG:
+                if float(self.min_value) <= 0 or float(self.max_value) <= 0:
+                    raise ValueError(
+                        "min_value and max_value must be positive for log-uniform distribution"
+                    )
         elif self.param_type == ParamType.CATEGORICAL:
             if not self.choices:
                 raise ValueError("choices required for categorical parameters")
@@ -36,8 +42,15 @@ class ParamSpace:
 
     @classmethod
     def float_range(cls, min_val: float, max_val: float, default: float):
-        """Create a float parameter space"""
+        """Create a float parameter space (uniform distribution)"""
         return cls(ParamType.FLOAT, min_val, max_val, default=default)
+
+    @classmethod
+    def float_log_range(cls, min_val: float, max_val: float, default: float):
+        """Create a float parameter space with log-uniform distribution."""
+        if min_val <= 0 or max_val <= 0:
+            raise ValueError("min_val and max_val must be positive for log-uniform distribution")
+        return cls(ParamType.FLOAT_LOG, min_val, max_val, default=default)
 
     @classmethod
     def categorical(cls, choices: List[Any], default: Any):

@@ -13,6 +13,7 @@ from framework.data_utils import (
     prepare_data,
     split_train_val,
 )
+from framework.fitness import calculate_composite_fitness
 from models.base import get_model_by_name
 from search import RandomSearch
 
@@ -73,9 +74,8 @@ def evaluate_model(
     if model_key in {"dt", "knn"}:
         model.create_model(**params)
         model.train(data["train_flat"], data["train_labels"])
-        return model.evaluate(data["val_flat"], data["val_labels"])
-
-    if model_key == "cnn":
+        metrics = model.evaluate(data["val_flat"], data["val_labels"])
+    elif model_key == "cnn":
         model.create_model(**params)
         model.train(
             data["train_images"],
@@ -83,9 +83,13 @@ def evaluate_model(
             data["val_images"],
             data["val_labels"],
         )
-        return model.evaluate(data["val_images"], data["val_labels"])
-
-    raise ValueError(f"Unsupported model key: {model_key}")
+        metrics = model.evaluate(data["val_images"], data["val_labels"])
+    else:
+        raise ValueError(f"Unsupported model key: {model_key}")
+    
+    metrics["composite_fitness"] = calculate_composite_fitness(metrics)
+    
+    return metrics
 
 
 def run_search(model_key: Literal["dt", "knn", "cnn"], trials: int) -> None:
@@ -98,7 +102,7 @@ def run_search(model_key: Literal["dt", "knn", "cnn"], trials: int) -> None:
     searcher = RandomSearch(
         param_space=param_space,
         evaluate_fn=lambda sampled: evaluate_model(model_key, sampled, data),
-        metric_key="accuracy",
+        metric_key="composite_fitness",
         seed=RANDOM_SEED,
     )
 
@@ -113,7 +117,11 @@ def run_search(model_key: Literal["dt", "knn", "cnn"], trials: int) -> None:
     print("-" * 80)
     print(f"Model: {model_key}")
     print(f"Trials: {trials}")
-    print(f"Best val accuracy: {result.best_metrics['accuracy']:.4f}")
+    print(f"Best composite fitness: {result.best_metrics['composite_fitness']:.4f}")
+    print("Best metrics:")
+    for name, value in result.best_metrics.items():
+        if isinstance(value, float):
+            print(f"  {name}: {value:.4f}")
     print("Best hyperparameters:")
     for name, value in result.best_params.items():
         print(f"  {name}: {value}")
