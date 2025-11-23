@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, f1_score, roc_auc_score
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.utils.validation import check_is_fitted
 
@@ -48,19 +48,29 @@ class KNNModel(BaseModel):
         return self.estimator.predict_proba(X)
 
     def evaluate(self, X_test, y_test) -> Dict[str, float]:
+        if self.estimator is None:
+            raise RuntimeError(
+                "Estimator has not been created. Call create_model() first."
+            )
         predictions = self.predict(X_test)
         report = classification_report(
             y_test, predictions, output_dict=True, zero_division=0
         )
-        return {
+        proba = self.estimator.predict_proba(X_test)
+        
+        metrics: Dict[str, float] = {
             "accuracy": report["accuracy"],
             "precision_macro": report["macro avg"]["precision"],
             "recall_macro": report["macro avg"]["recall"],
             "f1_macro": report["macro avg"]["f1-score"],
+            "f1_micro": report.get("micro avg", {}).get("f1-score", f1_score(y_test, predictions, average="micro", zero_division=0)),
+            "roc_auc": roc_auc_score(y_test, proba, average="macro", multi_class="ovr"),
             "precision_weighted": report["weighted avg"]["precision"],
             "recall_weighted": report["weighted avg"]["recall"],
             "f1_weighted": report["weighted avg"]["f1-score"],
         }
+        
+        return metrics
 
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {

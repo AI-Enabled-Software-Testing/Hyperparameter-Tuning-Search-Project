@@ -76,6 +76,7 @@ def train_epoch(
     epoch: int = 0,
     grad_clip_norm: float = 1.0,
     writer: Optional[SummaryWriter] = None,
+    verbose: bool = True,
 ) -> Tuple[float, float]:
     """Trains the model for one epoch and returns the epoch loss and accuracy."""
     nn.Module.train(model, mode=True)
@@ -83,9 +84,8 @@ def train_epoch(
     correct = 0
     total = 0
 
-    for batch_idx, (images, labels) in enumerate(
-        tqdm(train_loader, desc="Training", leave=False)
-    ):
+    loader = tqdm(train_loader, desc="Training", leave=False) if verbose else train_loader
+    for batch_idx, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
@@ -131,6 +131,7 @@ def validate(
     device: torch.device,
     epoch: int = 0,
     writer: Optional[SummaryWriter] = None,
+    verbose: bool = True,
 ) -> Tuple[float, float]:
     """Validates the model and returns the epoch loss and accuracy."""
     model.eval()
@@ -139,7 +140,8 @@ def validate(
     total = 0
 
     with torch.no_grad():
-        for images, labels in tqdm(val_loader, desc="Validating", leave=False):
+        loader = tqdm(val_loader, desc="Validating", leave=False) if verbose else val_loader
+        for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
 
             outputs = model(images)

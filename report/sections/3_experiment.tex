@@ -1,0 +1,90 @@
+\section{Experiment}
+
+\subsection{Models and Dataset}
+
+\subsubsection{Dataset}
+
+We use a grayscale version of CIFAR-10~\cite{krizhevsky2009learning}. RGB images ($32 \times 32$ pixels) are converted to grayscale using $Y = 0.2125R + 0.7154G + 0.0721B$ and normalized to $[0, 1]$.
+
+\subsubsection{Data Split}
+
+\begin{itemize}
+    \item Training Set: 40,000 images.
+    \item Validation Set: 10,000 images (used only for HPO fitness evaluation).
+    \item Test Set: 10,000 images (held out for final model evaluation after HPO is complete).
+\end{itemize} 
+
+\subsubsection{Models}
+
+\begin{itemize}
+    \item Decision Tree (DT)
+    \item K-Nearest Neighbors (KNN)
+    \item Convolutional Neural Network (CNN)
+\end{itemize}
+
+\clearpage
+\subsection{Hyperparameter Search Space}
+
+Table \ref{tab:hparam_space} defines the hyperparameter search space used by all three models.
+
+\begin{table}[htbp]
+\centering
+\caption{Hyperparameter Search Space Definition}
+\label{tab:hparam_space}
+\small
+\begin{tabularx}{\textwidth}{llllX}
+\toprule
+\textbf{Model} & \textbf{Hyperparameter} & \textbf{Type} & \textbf{Range} & \textbf{Justification \& Citation} \\
+\midrule
+\multirow{4}{*}{DT} & criterion & Categorical & \texttt{['gini', 'entropy']} & Standard impurity measures for split quality. \\
+\cmidrule{2-5}
+ & max\_depth & Integer & \texttt{[3, 20]} & Controls tree depth to balance bias/variance. \\
+\cmidrule{2-5}
+ & min\_samples\_split & Integer & \texttt{[2, 20]} & Regularization: min samples required to split a node. \\
+\cmidrule{2-5}
+ & min\_samples\_leaf & Integer & \texttt{[1, 10]} & Regularization: min samples required for a leaf node. \\
+\midrule
+\multirow{3}{*}{KNN} & n\_neighbors & Integer & \texttt{[3, 15]} & Number of neighbors; odd range to prevent ties. \\
+\cmidrule{2-5}
+ & weights & Categorical & \texttt{['uniform', 'distance']} & Weighting function for neighbors ('distance' gives more weight to closer points). \\
+\cmidrule{2-5}
+ & metric & Categorical & \texttt{['minkowski', 'manhattan']} & Distance metric (e.g., L2/Euclidean vs. L1/Manhattan). \\
+\midrule
+\multirow{6}{*}{CNN} & learning\_rate & Float (Log) & \texttt{[1e-5, 1e-2]} & Most critical HP; controls optimizer step size. \\
+\cmidrule{2-5}
+ & batch\_size & Categorical & \texttt{[16, 32, 64, 128]} & Trade-off between gradient stability and memory/speed. \\
+\cmidrule{2-5}
+ & optimizer & Categorical & \texttt{['AdamW', 'SGD']} & Compares modern adaptive (AdamW) vs. classical (SGD) optimizers. \\
+\cmidrule{2-5}
+ & kernel\_size & Integer & \texttt{[3, 5]} & Size of the convolutional filter's receptive field. \\
+\cmidrule{2-5}
+ & stride & Integer & \texttt{[1, 3]} & Step size of convolution; reduces spatial dimension. \\
+\cmidrule{2-5}
+ & weight\_decay & Float & \texttt{[0.0, 0.01]} & L2 regularization parameter to prevent overfitting. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+TODO: composite fitness function + table with justitifcation
+
+\subsubsection{Evaluation and Analysis}
+
+\subsubsection{Search Budget} Each HPO run is allocated a fixxed budget of 50 fitness evaluations.
+
+\subsubsection{Stochasticity} To account for stochasticity, we perform $N = 10$ independent runs for each optimizer-model.
+
+\subsubsection{Metrics}
+
+We will collect:
+
+\begin{itemize}
+    \item{Effectiveness:} The distribution (mean, median, best, worst) of the final fitnness score achieved across 10 runs.
+    \item{Efficiency:} The convergence trace and total wall-clock execution time for each run.
+    \item{Stability:} The variance of the final fitness scores across the 10 runs.
+\end{itemize}
+
+\subsubsection{Analysis}
+
+We will apply non-parametric statistical tests with a significance level of $\alpha = 0.05$ to compare the performance of the optimizers.
+
+TODO: Figure out the tests to use.

@@ -1,0 +1,20 @@
+
+\section{Problem Formulation}
+
+\subsection{Objective Function}
+
+HPO is a black-box optimization problem. The objective function $f(\theta)$, which represents the model's performance for a given hyperparameter configuration $\theta$, presents many challenges: it is computationally expensive to evaluate, it is non-differentiable, and the search space $\Theta$ is often complex and of mixed-types (continuous, discrete, and categorical). These properties make HPO suitable for search-based metaheuristic techniques.
+
+\subsection{Algorithm Selection}
+
+\subsubsection{Baseline: Randomized Search}
+
+RS is the standard scientific baseline for HPO. \citet{bergstra2012random} demonstrated empirically that RS is more efficient than Grid Search for HPO, as it does not waste evaluations on unimportant parameters. Therefore, any intelligent algorithm must demonstrate superiority over RS to be considered effective.
+
+\subsubsection{Genetic Algorithm}
+
+TODO
+
+\subsubsection{Particle Swarm Optimization}
+
+PSO models a swarm where individuals are strongly influenced by the single best-found solution. This behaviour leads to rapid convergence, often finding a "good-enough" solution quickly. This same strength can also be a weakness, as it may converge prematurely to a suboptimal solution. The swarm can rapidly cluster around the first local optimum it finds, losing diversity and becoming "stuck" before the true global optimum is found.
