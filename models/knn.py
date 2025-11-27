@@ -74,11 +74,9 @@ class KNNModel(BaseModel):
 
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
-            "n_neighbors": ParamSpace.integer(min_val=3, max_val=15, default=5),
+            "n_neighbors": ParamSpace.integer(min_val=3, max_val=30, default=5),
             "weights": ParamSpace.categorical(
                 choices=["uniform", "distance"], default="uniform"
             ),
-            "metric": ParamSpace.categorical(
-                choices=["minkowski", "manhattan"], default="minkowski"
-            ),
+            "metric": ParamSpace.categorical(choices=["minkowski", "manhattan", "euclidean", "chebyshev"], default="minkowski")
         }

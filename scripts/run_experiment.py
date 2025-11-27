@@ -126,8 +126,7 @@ def get_optimizer(
             f"Available: {list(optimizer_map.keys())}"
         )
 
-    # Only RandomSearch supports n_jobs currently
-    if optimizer_name.lower() == "rs":
+    if optimizer_name.lower() in {"rs", "pso"}:
         return optimizer_class(
             param_space=param_space,
             evaluate_fn=evaluate_fn,
@@ -330,7 +329,7 @@ def parse_args() -> argparse.Namespace:
         "--n-jobs",
         type=int,
         default=1,
-        help="Number of parallel workers for RandomSearch (default: 1, sequential). Use -1 for all CPUs.",
+        help="Number of parallel workers for RandomSearch and PSO (default: 1, sequential). Use -1 for all CPUs.",
     )
     return parser.parse_args()
 
