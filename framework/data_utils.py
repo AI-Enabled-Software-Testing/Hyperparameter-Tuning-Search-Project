@@ -30,11 +30,11 @@ def convert_to_grayscale(image: np.ndarray) -> np.ndarray:
             return image.squeeze(axis=2)
         elif image.shape[2] == 3:
             # RGB -> Grayscale using luminance weights
-            # Source: https://www.songho.ca/dsp/luminance/luminance.html
-            return np.dot(image[...,:3], [0.299, 0.587, 0.114])
+            # Y = 0.2125R + 0.7154G + 0.0721B
+            return np.dot(image[...,:3], [0.2125, 0.7154, 0.0721])
         elif image.shape[2] == 4:
             # RGBA -> Grayscale (ignore alpha)
-            return np.dot(image[...,:3], [0.299, 0.587, 0.114])
+            return np.dot(image[...,:3], [0.2125, 0.7154, 0.0721])
     
     raise ValueError(f"Unsupported image shape: {image.shape}")
 
