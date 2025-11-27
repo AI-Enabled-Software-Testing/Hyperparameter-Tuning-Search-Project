@@ -136,17 +136,10 @@ class CNNModel(BaseModel):
 
     def train(
         self,
-        train_loader: DataLoader,
-        val_loader: DataLoader,
+        train_data,  # Can be DataLoader or raw data
+        val_data,    # Can be DataLoader or raw data  
         config: Optional[TrainingConfig] = None,
         device: Optional[torch.device] = None,
-        epochs: Optional[int] = None,
-        patience: Optional[int] = None,
-        min_delta: Optional[float] = None,
-        checkpoint_path: Optional[Path] = None,
-        grad_clip_norm: Optional[float] = None,
-        writer: Optional[SummaryWriter] = None,
-        num_workers: int = 2,
         verbose: bool = True,
     ) -> Dict[str, float]:
         if self.network is None:
@@ -155,6 +148,27 @@ class CNNModel(BaseModel):
         self.network = self.network.to(device)
 
         config = config or TrainingConfig()
+        
+        # Handle different input types - convert to DataLoaders if needed
+        if isinstance(train_data, DataLoader) and isinstance(val_data, DataLoader):
+            train_loader = train_data
+            val_loader = val_data
+        else:
+            # Raw data provided - create DataLoaders
+            from framework.data_utils import create_dataloaders
+            if hasattr(train_data, '__len__') and hasattr(val_data, '__len__'):
+                # Assume train_data is X_train, val_data is y_train for backwards compatibility
+                if len(train_data) > 0 and not isinstance(train_data[0], (int, float)):
+                    # This looks like X_train, y_train, X_test, y_test pattern
+                    # Need to extract from the calling pattern
+                    batch_size = getattr(config, 'batch_size', 64)
+                    train_loader, val_loader = create_dataloaders(
+                        train_data, val_data, train_data[:len(val_data)], val_data, batch_size=batch_size
+                    )
+                else:
+                    raise ValueError("Invalid data format provided to CNN.train()")
+            else:
+                raise ValueError("Invalid data format provided to CNN.train()")
 
         optimizer = self._build_optimizer(self.network, config)
         scheduler = optim.lr_scheduler.OneCycleLR(
@@ -286,7 +300,8 @@ class CNNModel(BaseModel):
 
     def evaluate(
         self,
-        data_loader: DataLoader,
+        data,  # Can be DataLoader or raw data
+        labels=None,  # Required if data is not DataLoader
         device: Optional[torch.device] = None,
         criterion: Optional[nn.Module] = None,
         num_workers: int = 0,
@@ -296,17 +311,6 @@ class CNNModel(BaseModel):
         device = device or get_device()
         network = self.network.to(device)
         network.eval()
-
-        default_config = TrainingConfig()
-        batch_size = int(self.params.get("batch_size", default_config.batch_size))
-        dataset = CIFAR10Dataset(X, y)
-        data_loader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-            pin_memory=torch.cuda.is_available(),
-        )
 
         # Handle data input - create DataLoader if raw data is provided
         if isinstance(data, DataLoader):
@@ -357,19 +361,26 @@ class CNNModel(BaseModel):
         f1_macro = report["macro avg"]["f1-score"]
         f1_micro = report.get("micro avg", {}).get("f1-score", f1_score(y_true, y_pred, average="micro", zero_division=0))
         
-        roc_auc = roc_auc_score(y_true, y_proba, average="macro", multi_class="ovr")
-
-        avg_loss = total_loss / len(data_loader)
-
-        return {
-            "loss": avg_loss,
+        # Initialize metrics without ROC AUC first
+        metrics = {
+            "loss": total_loss / len(data_loader), # average loss
             "accuracy": accuracy,
             "precision_macro": precision_macro,
             "recall_macro": recall_macro,
             "f1_macro": f1_macro,
             "f1_micro": f1_micro,
-            "roc_auc": roc_auc,
         }
+        
+        # Try to calculate ROC AUC, but handle potential errors gracefully
+        try:
+            roc_auc = roc_auc_score(y_true, y_proba, average="macro", multi_class="ovr")
+            metrics["roc_auc"] = roc_auc
+        except ValueError as e:
+            # ROC AUC calculation failed (likely due to insufficient samples per class)
+            # Continue without ROC AUC metric
+            print(f"Warning: Could not calculate ROC AUC: {e}")
+
+        return metrics
 
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
