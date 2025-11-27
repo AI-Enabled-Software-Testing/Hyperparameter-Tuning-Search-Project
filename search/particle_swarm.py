@@ -6,24 +6,15 @@ import random
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Mapping, Optional
-
 import numpy as np
 from joblib import Parallel, delayed
 from torch.utils.tensorboard import SummaryWriter
-
-# Import your existing ParamSpace classes
 from models.ParamSpace import ParamSpace, ParamType
 from .base import Optimizer
 
 
-# --------------------------------------------------------------------------- #
-# Helper: Parameter Transformer
-# --------------------------------------------------------------------------- #
 class ParameterTransformer:
-    """
-    Handles the translation between the 'Dictionary' world (user params)
-    and the 'Vector' world (PSO math).
-    """
+    """Transforms the parameter space into a vector and back."""
 
     def __init__(self, param_space: Mapping[str, ParamSpace]):
         self.param_space = param_space
@@ -35,7 +26,6 @@ class ParameterTransformer:
         self.bounds_min: List[float] = []
         self.bounds_max: List[float] = []
         
-        # We need to know which indices correspond to which logic
         self.types: List[ParamType] = [] 
 
         for name in self.param_names:
@@ -57,16 +47,14 @@ class ParameterTransformer:
                 self.types.append(space.param_type)
                 
             elif space.param_type in [ParamType.CATEGORICAL, ParamType.BOOLEAN]:
-                # N Dimensions (One-Hot / Logits), Loose bounds
-                # We use choices length. For Boolean, choices is [True, False] implicitly in your class
+                # One-hot ndim
                 choices = space.choices
                 if choices is None:
                     raise ValueError(f"choices cannot be None for {space.param_type.value} parameter")
                 n_choices = len(choices)
                 
                 self.total_dim += n_choices
-                # Logits technically unbounded, but we clamp to prevent overflow/saturation
-                # -10 to 10 covers sigmoid ranges 0.00004 to 0.99995
+                # Clamp to prevent saturation
                 self.bounds_min.extend([-10.0] * n_choices)
                 self.bounds_max.extend([10.0] * n_choices)
                 self.types.extend([space.param_type] * n_choices)
@@ -77,6 +65,7 @@ class ParameterTransformer:
         self.np_bounds_max = np.array(self.bounds_max, dtype=float)
         
         # Velocity limits: 20% of the range
+        # kinda arbitrary but it works.
         self.vel_limits = (self.np_bounds_max - self.np_bounds_min) * 0.2
 
     def vector_to_params(self, vector: np.ndarray) -> Dict[str, Any]:
@@ -89,28 +78,24 @@ class ParameterTransformer:
             segment = vector[sl]
             
             if space.param_type == ParamType.INTEGER:
-                # Round to nearest integer and clamp to bounds
                 if space.min_value is None or space.max_value is None:
                     raise ValueError("min_value and max_value required for INTEGER parameter")
                 rounded = int(round(float(segment[0])))
                 params[name] = max(int(space.min_value), min(int(space.max_value), rounded))
                 
             elif space.param_type == ParamType.FLOAT:
-                # Clamp to bounds
                 if space.min_value is None or space.max_value is None:
                     raise ValueError("min_value and max_value required for FLOAT parameter")
                 val = float(segment[0])
                 params[name] = float(max(float(space.min_value), min(float(space.max_value), val)))
                 
             elif space.param_type == ParamType.FLOAT_LOG:
-                # Convert back from log-space and clamp to bounds
                 if space.min_value is None or space.max_value is None:
                     raise ValueError("min_value and max_value required for FLOAT_LOG parameter")
                 exp_val = math.exp(float(segment[0]))
                 params[name] = float(max(float(space.min_value), min(float(space.max_value), exp_val)))
                 
             elif space.param_type in [ParamType.CATEGORICAL, ParamType.BOOLEAN]:
-                # Argmax of logits -> Index -> Choice
                 if space.choices is None:
                     raise ValueError(f"choices cannot be None for {space.param_type.value} parameter")
                 best_idx = np.argmax(segment)
@@ -119,21 +104,18 @@ class ParameterTransformer:
         return params
 
     def sample_random_vector(self, rng: random.Random) -> np.ndarray:
-        """Create a random valid vector in the search space."""
+        """Sample a random valid vector in the search space."""
         vec = np.zeros(self.total_dim)
         
+        # I'm choosing a random value between -2 and 2 for the one-hot ndim.
         for i, (b_min, b_max, p_type) in enumerate(zip(self.bounds_min, self.bounds_max, self.types)):
             if p_type in [ParamType.CATEGORICAL, ParamType.BOOLEAN]:
-                # Initialize logits with smaller noise around 0 for fairness
                 vec[i] = rng.uniform(-2.0, 2.0)
             else:
                 vec[i] = rng.uniform(b_min, b_max)
         return vec
 
 
-# --------------------------------------------------------------------------- #
-# Result Data Class
-# --------------------------------------------------------------------------- #
 @dataclass
 class PSOResult:
     best_params: Dict[str, Any]
@@ -142,9 +124,6 @@ class PSOResult:
     history: List[Dict[str, Any]]
 
 
-# --------------------------------------------------------------------------- #
-# Particle Class
-# --------------------------------------------------------------------------- #
 class _Particle:
     def __init__(
         self,
@@ -152,18 +131,10 @@ class _Particle:
         rng: random.Random
     ) -> None:
         self.transformer = transformer
-        
-        # 1. Position: A flat float vector (including logits)
         self.position = transformer.sample_random_vector(rng)
-        
-        # 2. Velocity: Same shape, starts at 0
         self.velocity = np.zeros_like(self.position)
-        
-        # 3. Personal Best
         self.p_best_pos = self.position.copy()
         self.p_best_score = float("-inf")
-        
-        # Cache current params to avoid re-decoding constantly
         self.current_params_dict = transformer.vector_to_params(self.position)
 
     def update_velocity(
@@ -175,7 +146,7 @@ class _Particle:
         r2: np.ndarray,
         g_best_pos: np.ndarray
     ) -> None:
-        # Standard PSO Math (Works for logits too!)
+        # Standard PSO
         # v = w*v + c1*r1*(p_best - x) + c2*r2*(g_best - x)
         
         cognitive = c1 * r1 * (self.p_best_pos - self.position)
@@ -194,20 +165,15 @@ class _Particle:
         self.position += self.velocity
         
         # Clamp position to valid bounds
-        # For Logits, this prevents values like 1e9 which kill gradients
         self.position = np.clip(
             self.position, 
             self.transformer.np_bounds_min, 
             self.transformer.np_bounds_max
         )
         
-        # Update dictionary representation
         self.current_params_dict = self.transformer.vector_to_params(self.position)
 
 
-# --------------------------------------------------------------------------- #
-# Main Optimizer Class
-# --------------------------------------------------------------------------- #
 class ParticleSwarmOptimization(Optimizer):
     def __init__(
         self,
@@ -216,15 +182,14 @@ class ParticleSwarmOptimization(Optimizer):
         metric_key: str = "accuracy",
         seed: Optional[int] = None,
         n_jobs: int | None = 1,
-        # PSO Hyperparameters
+        # PSO Hyperparams
         n_particles: int = 10,
         w: float = 0.5,
         c1: float = 1.5,
         c2: float = 1.5,
     ) -> None:
         super().__init__(param_space, evaluate_fn, metric_key, seed)
-            
-        # Initialize the Transformer
+        # Vector to param space transformer
         self.transformer = ParameterTransformer(self.param_space)
 
     def run(
@@ -245,33 +210,25 @@ class ParticleSwarmOptimization(Optimizer):
                 else:
                     print(f"Using {self.n_jobs} parallel workers")
 
-        # ----------------------------------------------------------------- #
-        # State Initialization
-        # ----------------------------------------------------------------- #
         history: List[Dict[str, Any]] = []
         
-        # Global Best
         g_best_pos: Optional[np.ndarray] = None
         g_best_score = float("-inf")
         g_best_metrics: Dict[str, float] = {}
         g_best_params: Dict[str, Any] = {}
 
-        # Spawn Swarm
         swarm = [
             _Particle(self.transformer, self._rng) 
             for _ in range(self.n_particles)
         ]
 
-        # ----------------------------------------------------------------- #
-        # Optimization Loop
-        # ----------------------------------------------------------------- #
         evals_done = 0
         generation = 0
 
         while evals_done < trials:
             generation += 1
             
-            # 1. Update Kinematics (Skip gen 0)
+            # Update Kinematics (Skip gen 0)
             if evals_done > 0 and g_best_pos is not None:
                 for p in swarm:
                     # Random vectors for stochasticity
@@ -281,15 +238,10 @@ class ParticleSwarmOptimization(Optimizer):
                     p.update_velocity(self.w, self.c1, self.c2, r1, r2, g_best_pos)
                     p.move()
 
-            # 2. Select particles to evaluate (Budget Check)
             remaining = trials - evals_done
-            # If remaining budget < n_particles, just eval the first 'remaining' ones
             current_batch = swarm[:remaining]
-            
-            # 3. Prepare Configs
             configs = [p.current_params_dict for p in current_batch]
 
-            # 4. Evaluate
             if self.n_jobs == 1:
                 results = []
                 for cfg in configs:
@@ -309,19 +261,19 @@ class ParticleSwarmOptimization(Optimizer):
                     delayed(_eval_wrapper)(c) for c in configs
                 )
 
-            # 5. Update Knowledge
+            # Update Knowledge
             for i, (metrics, duration) in enumerate(results):
                 p = current_batch[i]
                 evals_done += 1
                 
                 score = metrics.get(self.metric_key, float("-inf"))
                 
-                # Update Personal Best
+                # Update personal bests
                 if score > p.p_best_score:
                     p.p_best_score = score
                     p.p_best_pos = p.position.copy()
 
-                # Update Global Best
+                # Update global bests
                 if score > g_best_score:
                     g_best_score = score
                     g_best_pos = p.position.copy()
@@ -331,7 +283,6 @@ class ParticleSwarmOptimization(Optimizer):
                     if verbose:
                         print(f"  Gen {generation}: New Best {self.metric_key}={score:.4f}")
 
-                # History & Logging
                 rec = {
                     "trial": evals_done,
                     "params": p.current_params_dict.copy(),
@@ -348,7 +299,7 @@ class ParticleSwarmOptimization(Optimizer):
             if evals_done >= trials:
                 break
 
-        # Sort history by trial ID
+        # Sort history by trial number
         history.sort(key=lambda x: x["trial"])
 
         return PSOResult(
