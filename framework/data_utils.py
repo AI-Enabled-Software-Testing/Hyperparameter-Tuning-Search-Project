@@ -6,7 +6,6 @@ import numpy as np
 from datasets import load_from_disk
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
-from PIL import Image
 
 from framework import utils
 from framework.datasets import CIFAR10Dataset
@@ -116,14 +115,12 @@ def create_dataloaders(
     X_val: List[np.ndarray],
     y_val: np.ndarray,
     batch_size: int,
-    num_workers: int = 2,
 ) -> Tuple[DataLoader, DataLoader]:
     train_dataset = CIFAR10Dataset(X_train, y_train)
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers,
         pin_memory=utils.is_cuda_available(),
     )
 
@@ -132,7 +129,6 @@ def create_dataloaders(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,
         pin_memory=utils.is_cuda_available(),
     )
 

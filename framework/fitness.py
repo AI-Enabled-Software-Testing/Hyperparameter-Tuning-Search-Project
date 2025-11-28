@@ -1,12 +1,12 @@
 def calculate_composite_fitness(metrics: dict[str, float]) -> float:
     """Calculate composite fitness score from evaluation metrics."""
     # Extract metrics
-    f1_macro = metrics.get("f1_macro", 0.0)
-    recall_macro = metrics.get("recall_macro", 0.0)
-    roc_auc = metrics.get("roc_auc", 0.0)
-    precision_macro = metrics.get("precision_macro", 0.0)
-    accuracy = metrics.get("accuracy", 0.0)
-    f1_micro = metrics.get("f1_micro", 0.0)
+    f1_macro = metrics["f1_macro"]
+    recall_macro = metrics["recall_macro"]
+    roc_auc = metrics["roc_auc"]
+    precision_macro = metrics["precision_macro"]
+    accuracy = metrics["accuracy"]
+    f1_micro = metrics["f1_micro"]
     
     # Composite fitness
     composite_fitness = (

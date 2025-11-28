@@ -1,8 +1,8 @@
 """CNN model"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Dict, List, Optional, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -24,8 +24,6 @@ from framework.utils import count_parameters, get_device
 from .ParamSpace import ParamSpace
 from .base import BaseModel
 
-import numpy as np
-from torch import tensor
 
 MODEL_PATH = Path(".cache/models/cnn_cifar.pth")
 
@@ -92,7 +90,6 @@ class Backbone(nn.Module):
             nn.Linear(64, num_classes),
         )
 
-    # Will be run by PyTorch under the hood
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
         return self.classifier(x)
@@ -108,36 +105,24 @@ class CNNModel(BaseModel):
         self._input_channels = 1  # grayscale CIFAR-10
 
     def create_model(self, **params) -> None:
-        """Create the CNN model with given parameters."""        
-        # Extract architecture-specific parameters for Backbone creation      
-        kernel_size = params.get("kernel_size", 3)
-        stride = params.get("stride", 1)
-        learning_rate = params.get("learning_rate", 3e-4)
-        batch_size = params.get("batch_size", 64)
-        weight_decay = params.get("weight_decay", 1e-3)
-        optimizer = params.get("optimizer", "AdamW")
-        
-        # Also ensure default values are set if not provided
-        self.params.setdefault("kernel_size", kernel_size)
-        self.params.setdefault("stride", stride)
-        self.params.setdefault("learning_rate", learning_rate)
-        self.params.setdefault("batch_size", batch_size)
-        self.params.setdefault("weight_decay", weight_decay)
-        self.params.setdefault("optimizer", optimizer)
-
+        """Create the CNN model with given parameters."""
         # Store all parameters passed in
         self.params.update(params)
+        
+        # Create Backbone with architecture-specific parameters
         self.network = Backbone(
             in_channels=self._input_channels,
             num_classes=self.num_classes,
-            kernel_size=kernel_size,
-            stride=stride,
+            kernel_size=self.params.get("kernel_size", 3),
+            stride=self.params.get("stride", 1),
         )
 
     def train(
         self,
-        train_data,  # Can be DataLoader or raw data
-        val_data,    # Can be DataLoader or raw data  
+        X_train: List[np.ndarray],
+        y_train: np.ndarray,
+        X_val: List[np.ndarray],
+        y_val: np.ndarray,
         config: Optional[TrainingConfig] = None,
         device: Optional[torch.device] = None,
         verbose: bool = True,
@@ -147,28 +132,25 @@ class CNNModel(BaseModel):
         device = device or get_device()
         self.network = self.network.to(device)
 
-        config = config or TrainingConfig()
+        # Create config from params if not provided, using defaults where needed
+        if config is None:
+            default_config = TrainingConfig()
+            config = replace(
+                default_config,
+                learning_rate=float(self.params.get("learning_rate", default_config.learning_rate)),
+                weight_decay=float(self.params.get("weight_decay", default_config.weight_decay)),
+                optimizer=self.params.get("optimizer", default_config.optimizer),
+                batch_size=int(self.params.get("batch_size", default_config.batch_size)),
+            )
         
-        # Handle different input types - convert to DataLoaders if needed
-        if isinstance(train_data, DataLoader) and isinstance(val_data, DataLoader):
-            train_loader = train_data
-            val_loader = val_data
-        else:
-            # Raw data provided - create DataLoaders
-            from framework.data_utils import create_dataloaders
-            if hasattr(train_data, '__len__') and hasattr(val_data, '__len__'):
-                # Assume train_data is X_train, val_data is y_train for backwards compatibility
-                if len(train_data) > 0 and not isinstance(train_data[0], (int, float)):
-                    # This looks like X_train, y_train, X_test, y_test pattern
-                    # Need to extract from the calling pattern
-                    batch_size = getattr(config, 'batch_size', 64)
-                    train_loader, val_loader = create_dataloaders(
-                        train_data, val_data, train_data[:len(val_data)], val_data, batch_size=batch_size
-                    )
-                else:
-                    raise ValueError("Invalid data format provided to CNN.train()")
-            else:
-                raise ValueError("Invalid data format provided to CNN.train()")
+        # Create DataLoaders from X_train/y_train/X_val/y_val
+        train_loader, val_loader = create_dataloaders(
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            batch_size=config.batch_size,
+        )
 
         optimizer = self._build_optimizer(self.network, config)
         scheduler = optim.lr_scheduler.OneCycleLR(
@@ -263,8 +245,7 @@ class CNNModel(BaseModel):
 
     def predict(
         self,
-        data: DataLoader | List | np.ndarray,
-        labels: List | np.ndarray = None,
+        X_test: List[np.ndarray],
         device: Optional[torch.device] = None,
         return_probabilities: bool = False,
     ) -> torch.Tensor:
@@ -274,18 +255,16 @@ class CNNModel(BaseModel):
         network = self.network.to(device)
         network.eval()
 
-        # Handle data input - create DataLoader if raw data is provided
-        if isinstance(data, DataLoader):
-            data_loader = data
-        else:
-            # Raw data provided - create DataLoader
-            from framework.data_utils import create_dataloaders
-            if labels is None:
-                labels = [0] * len(data)  # dummy labels for prediction
-            batch_size = getattr(self, 'params', {}).get('batch_size', 64)
-            _, data_loader = create_dataloaders(
-                data[:1], [labels[0]], data, labels, batch_size=batch_size
-            )
+        # Create DataLoader from X_test (with dummy labels for prediction)
+        batch_size = int(self.params.get("batch_size", 128))
+        dummy_labels = np.zeros(len(X_test), dtype=np.int64)
+        dataset = CIFAR10Dataset(X_test, dummy_labels)
+        data_loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            pin_memory=torch.cuda.is_available(),
+        )
 
         outputs = []
         with torch.no_grad():
@@ -300,11 +279,10 @@ class CNNModel(BaseModel):
 
     def evaluate(
         self,
-        data,  # Can be DataLoader or raw data
-        labels=None,  # Required if data is not DataLoader
+        X_test: List[np.ndarray],
+        y_test: np.ndarray,
         device: Optional[torch.device] = None,
         criterion: Optional[nn.Module] = None,
-        num_workers: int = 0,
     ) -> Dict[str, float]:
         if self.network is None:
             raise RuntimeError("Evaluate called before model is initialized")
@@ -312,18 +290,15 @@ class CNNModel(BaseModel):
         network = self.network.to(device)
         network.eval()
 
-        # Handle data input - create DataLoader if raw data is provided
-        if isinstance(data, DataLoader):
-            data_loader = data
-        else:
-            # Raw data provided - create DataLoader
-            from framework.data_utils import create_dataloaders
-            if labels is None:
-                raise ValueError("labels must be provided when data is not a DataLoader")
-            batch_size = getattr(self, 'params', {}).get('batch_size', 64)
-            _, data_loader = create_dataloaders(
-                data[:1], [labels[0]], data, labels, batch_size=batch_size
-            )
+        # Create DataLoader from X_test/y_test
+        batch_size = int(self.params.get("batch_size", 128))
+        dataset = CIFAR10Dataset(X_test, y_test)
+        data_loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            pin_memory=torch.cuda.is_available(),
+        )
 
         criterion = criterion or nn.CrossEntropyLoss()
 
@@ -359,28 +334,21 @@ class CNNModel(BaseModel):
         precision_macro = report["macro avg"]["precision"]
         recall_macro = report["macro avg"]["recall"]
         f1_macro = report["macro avg"]["f1-score"]
-        f1_micro = report.get("micro avg", {}).get("f1-score", f1_score(y_true, y_pred, average="micro", zero_division=0))
+        f1_micro = f1_score(y_true, y_pred, average="micro", zero_division=0)
         
-        # Initialize metrics without ROC AUC first
-        metrics = {
-            "loss": total_loss / len(data_loader), # average loss
+        roc_auc = roc_auc_score(y_true, y_proba, average="macro", multi_class="ovr")
+
+        avg_loss = total_loss / len(data_loader)
+
+        return {
+            "loss": avg_loss,
             "accuracy": accuracy,
             "precision_macro": precision_macro,
             "recall_macro": recall_macro,
             "f1_macro": f1_macro,
             "f1_micro": f1_micro,
+            "roc_auc": roc_auc,
         }
-        
-        # Try to calculate ROC AUC, but handle potential errors gracefully
-        try:
-            roc_auc = roc_auc_score(y_true, y_proba, average="macro", multi_class="ovr")
-            metrics["roc_auc"] = roc_auc
-        except ValueError as e:
-            # ROC AUC calculation failed (likely due to insufficient samples per class)
-            # Continue without ROC AUC metric
-            print(f"Warning: Could not calculate ROC AUC: {e}")
-
-        return metrics
 
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {

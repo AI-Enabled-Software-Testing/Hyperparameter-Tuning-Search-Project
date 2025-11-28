@@ -22,7 +22,9 @@ from framework.data_utils import (
 )
 from framework.fitness import calculate_composite_fitness
 from models.base import get_model_by_name
+from models.cnn import TrainingConfig
 from search import RandomSearch, GeneticAlgorithm, ParticleSwarmOptimization
+from dataclasses import replace
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXPERIMENT_ROOT = REPO_ROOT / ".cache" / "experiment"
@@ -74,7 +76,6 @@ def evaluate_model(
     params: Dict[str, Any],
     data: Dict[str, Any],
     verbose: bool = True,
-    num_workers: int = 2,
 ) -> Dict[str, float]:
     """Evaluate a model with given hyperparameters."""
     model = get_model_by_name(model_key)
@@ -85,14 +86,22 @@ def evaluate_model(
         metrics = model.evaluate(data["val_flat"], data["val_labels"])
     elif model_key == "cnn":
         model.create_model(**params)
+        default_config = TrainingConfig()
+        config = replace(
+            default_config,
+            learning_rate=float(params.get("learning_rate", default_config.learning_rate)),
+            weight_decay=float(params.get("weight_decay", default_config.weight_decay)),
+            optimizer=params.get("optimizer", default_config.optimizer),
+            batch_size=int(params.get("batch_size", default_config.batch_size)),
+            patience=99999999,  # Disable early stopping
+        )
         model.train(
             data["train_images"],
             data["train_labels"],
             data["val_images"],
             data["val_labels"],
+            config=config,
             verbose=verbose,
-            num_workers=num_workers,
-            patience=99999999,  # Disable early stopping
         )
         metrics = model.evaluate(data["val_images"], data["val_labels"])
     else:
@@ -255,7 +264,6 @@ def run_experiment(
                 params,
                 data,
                 verbose=not is_parallel,
-                num_workers=0 if is_parallel else 2,
             )
         
         optimizer = get_optimizer(
