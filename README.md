@@ -104,4 +104,4 @@ The script includes:
 - CUDA support with automatic device detection
 
 ### Model Training with a Customized Tuning Process
-* A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\model_training_flow.ipynb`, including: a shorter demo with less data, data and model loading processes, an exhaustive tuning (without metaheuristics) on only the validation set, training and evaluating on the best found set of hyperparameters for each model.  
+* A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\model_training_flow.ipynb`, including: a shorter demo with less data, data and model loading processes, an exhaustive tuning (without metaheuristics) on only the validation set, training and evaluating on the best found set of hyperparameters for each model. Another notebook named `rs_training.ipynb` in the same directory focuses primarily on using a random solver (our choice of baseline) to search for the best set of hyperparameters based on a more updated version of classes and functions interfaces from our models. 
