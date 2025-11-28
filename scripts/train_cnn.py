@@ -13,7 +13,7 @@ from framework.data_utils import (
     split_train_val,
 )
 from framework.utils import get_device, test_pytorch_setup
-from models.cnn import CNNModel
+from models.cnn import CNNModel, TrainingConfig
 
 
 def parse_args():
@@ -76,12 +76,6 @@ def parse_args():
         help="Validation split ratio.",
     )
     parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=2,
-        help="Number of dataloader workers.",
-    )
-    parser.add_argument(
         "--log-dir",
         type=str,
         default=None,
@@ -123,20 +117,28 @@ def train_model(args, writer: SummaryWriter):
     )
 
     test_pytorch_setup()
-    # train() creates DataLoaders internally using batch_size from model.params
-    results = model.train(
-        X_train,
-        y_train,
-        X_val,
-        y_val,
-        device=device,
+    
+    # Create TrainingConfig object
+    config = TrainingConfig(
         epochs=args.epochs,
+        learning_rate=args.lr,
+        weight_decay=args.weight_decay,
+        optimizer=args.optimizer,
         patience=args.patience,
         min_delta=args.min_delta,
         checkpoint_path=Path(args.checkpoint_path),
         grad_clip_norm=args.grad_clip,
         writer=writer,
-        num_workers=args.num_workers,
+        batch_size=args.batch_size,
+    )
+    
+    results = model.train(
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        config=config,
+        device=device,
     )
 
     print("\nTraining complete!")

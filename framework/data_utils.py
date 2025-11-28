@@ -1,12 +1,11 @@
 """Data loading and preprocessing utilities."""
 
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 import numpy as np
 from datasets import load_from_disk
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
-from PIL import Image
 
 from framework import utils
 from framework.datasets import CIFAR10Dataset
@@ -116,14 +115,12 @@ def create_dataloaders(
     X_val: List[np.ndarray],
     y_val: np.ndarray,
     batch_size: int,
-    num_workers: int = 2,
 ) -> Tuple[DataLoader, DataLoader]:
     train_dataset = CIFAR10Dataset(X_train, y_train)
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers,
         pin_memory=utils.is_cuda_available(),
     )
 
@@ -132,8 +129,38 @@ def create_dataloaders(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,
         pin_memory=utils.is_cuda_available(),
     )
 
     return train_loader, val_loader
+
+
+def prepare_dataset(val_ratio: float = 0.1) -> Dict[str, Any]:
+    """Prepare and return the CIFAR-10 dataset"""
+    ds_dict = load_cifar10_data()
+    train_images, train_labels = prepare_data(ds_dict, "train")
+    test_images, test_labels = prepare_data(ds_dict, "test")
+
+    X_train, y_train, X_val, y_val = split_train_val(
+        train_images, train_labels, val_ratio=val_ratio
+    )
+
+    def flatten(images):
+        stacked = np.stack([np.asarray(img, dtype=np.float32) for img in images])
+        return stacked.reshape(len(images), -1)
+
+    train_flat = flatten(X_train)
+    val_flat = flatten(X_val)
+    test_flat = flatten(test_images)
+
+    return {
+        "train_images": X_train,
+        "train_labels": y_train,
+        "val_images": X_val,
+        "val_labels": y_val,
+        "test_images": test_images,
+        "test_labels": test_labels,
+        "train_flat": train_flat,
+        "val_flat": val_flat,
+        "test_flat": test_flat,
+    }

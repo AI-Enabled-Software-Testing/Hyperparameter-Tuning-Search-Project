@@ -1,7 +1,9 @@
 """Abstract interface for models used in the hyperparameter tuning framework."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Literal
+from typing import Dict, Any
+
+
 
 from .ParamSpace import ParamSpace
 
@@ -36,23 +38,3 @@ class BaseModel(ABC):
     def get_param_space(self) -> Dict[str, ParamSpace]:
         """Return the searchable hyperparameter space."""
         raise NotImplementedError
-
-
-def get_model_by_name(model_name: Literal["dt", "knn", "cnn"]) -> BaseModel:
-    """Factory function to get model by name."""
-    from models.decision_tree import DecisionTreeModel
-    from models.knn import KNNModel
-    from models.cnn import CNNModel
-
-    models = {
-        "dt": DecisionTreeModel,
-        "knn": KNNModel,
-        "cnn": CNNModel,
-    }
-
-    if model_name not in models:
-        raise ValueError(
-            f"Unknown model: {model_name}. Available models: {list(models.keys())}"
-        )
-
-    return models[model_name]()

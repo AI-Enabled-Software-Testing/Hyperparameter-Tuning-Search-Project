@@ -9,20 +9,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Literal
 
+from models.decision_tree import DecisionTreeModel
+from models.knn import KNNModel
+
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import torch
 
-from framework.data_utils import (
-    load_cifar10_data,
-    prepare_data,
-    split_train_val,
-)
+from framework.data_utils import prepare_dataset
 from framework.fitness import calculate_composite_fitness
-from models.base import get_model_by_name
+from models.factory import get_model_by_name
+from models.cnn import CNNModel, TrainingConfig
 from search import RandomSearch, GeneticAlgorithm, ParticleSwarmOptimization
+from dataclasses import replace
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXPERIMENT_ROOT = REPO_ROOT / ".cache" / "experiment"
@@ -38,35 +39,6 @@ def set_seeds(seed: int):
         torch.cuda.manual_seed_all(seed)
 
 
-def prepare_dataset() -> Dict[str, Any]:
-    """Prepare and return the CIFAR-10 dataset."""
-    ds_dict = load_cifar10_data()
-    train_images, train_labels = prepare_data(ds_dict, "train")
-    test_images, test_labels = prepare_data(ds_dict, "test")
-
-    X_train, y_train, X_val, y_val = split_train_val(
-        train_images, train_labels, val_ratio=0.1
-    )
-
-    def flatten(images):
-        stacked = np.stack([np.asarray(img, dtype=np.float32) for img in images])
-        return stacked.reshape(len(images), -1)
-
-    train_flat = flatten(X_train)
-    val_flat = flatten(X_val)
-    test_flat = flatten(test_images)
-
-    return {
-        "train_images": X_train,
-        "train_labels": y_train,
-        "val_images": X_val,
-        "val_labels": y_val,
-        "test_images": test_images,
-        "test_labels": test_labels,
-        "train_flat": train_flat,
-        "val_flat": val_flat,
-        "test_flat": test_flat,
-    }
 
 
 def evaluate_model(
@@ -74,25 +46,34 @@ def evaluate_model(
     params: Dict[str, Any],
     data: Dict[str, Any],
     verbose: bool = True,
-    num_workers: int = 2,
 ) -> Dict[str, float]:
     """Evaluate a model with given hyperparameters."""
     model = get_model_by_name(model_key)
 
     if model_key in {"dt", "knn"}:
+        assert isinstance(model, (DecisionTreeModel, KNNModel))
         model.create_model(**params)
         model.train(data["train_flat"], data["train_labels"])
         metrics = model.evaluate(data["val_flat"], data["val_labels"])
     elif model_key == "cnn":
+        assert isinstance(model, CNNModel)
         model.create_model(**params)
+        default_config = TrainingConfig()
+        config = replace(
+            default_config,
+            learning_rate=float(params.get("learning_rate", default_config.learning_rate)),
+            weight_decay=float(params.get("weight_decay", default_config.weight_decay)),
+            optimizer=params.get("optimizer", default_config.optimizer),
+            batch_size=int(params.get("batch_size", default_config.batch_size)),
+            patience=99999999,  # Disable early stopping
+        )
         model.train(
             data["train_images"],
             data["train_labels"],
             data["val_images"],
             data["val_labels"],
+            config=config,
             verbose=verbose,
-            num_workers=num_workers,
-            patience=99999999,  # Disable early stopping
         )
         metrics = model.evaluate(data["val_images"], data["val_labels"])
     else:
@@ -126,8 +107,7 @@ def get_optimizer(
             f"Available: {list(optimizer_map.keys())}"
         )
 
-    # Only RandomSearch supports n_jobs currently
-    if optimizer_name.lower() == "rs":
+    if optimizer_name.lower() in {"rs", "pso"}:
         return optimizer_class(
             param_space=param_space,
             evaluate_fn=evaluate_fn,
@@ -256,7 +236,6 @@ def run_experiment(
                 params,
                 data,
                 verbose=not is_parallel,
-                num_workers=0 if is_parallel else 2,
             )
         
         optimizer = get_optimizer(
@@ -330,7 +309,7 @@ def parse_args() -> argparse.Namespace:
         "--n-jobs",
         type=int,
         default=1,
-        help="Number of parallel workers for RandomSearch (default: 1, sequential). Use -1 for all CPUs.",
+        help="Number of parallel workers for RandomSearch and PSO (default: 1, sequential). Use -1 for all CPUs.",
     )
     return parser.parse_args()
 
