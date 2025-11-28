@@ -1,7 +1,11 @@
 """Abstract interface for models used in the hyperparameter tuning framework."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Literal
+from typing import Dict, Any, Literal, overload
+
+from models.cnn import CNNModel
+from models.decision_tree import DecisionTreeModel
+from models.knn import KNNModel
 
 from .ParamSpace import ParamSpace
 
@@ -38,12 +42,19 @@ class BaseModel(ABC):
         raise NotImplementedError
 
 
-def get_model_by_name(model_name: Literal["dt", "knn", "cnn"]) -> BaseModel:
-    """Factory function to get model by name."""
-    from models.decision_tree import DecisionTreeModel
-    from models.knn import KNNModel
-    from models.cnn import CNNModel
+@overload
+def get_model_by_name(model_name: Literal["dt"]) -> DecisionTreeModel:
+    ...
 
+@overload
+def get_model_by_name(model_name: Literal["knn"]) -> KNNModel:
+    ...
+
+@overload
+def get_model_by_name(model_name: Literal["cnn"]) -> CNNModel:
+    ...
+
+def get_model_by_name(model_name: Literal["dt", "knn", "cnn"]) -> KNNModel | DecisionTreeModel | CNNModel:
     models = {
         "dt": DecisionTreeModel,
         "knn": KNNModel,
