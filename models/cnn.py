@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, List
 
 import numpy as np
 import torch
@@ -23,6 +23,9 @@ from framework.training import Checkpoint, EarlyStopping, train_epoch, validate
 from framework.utils import count_parameters, get_device
 from .ParamSpace import ParamSpace
 from .base import BaseModel
+
+import numpy as np
+from torch import tensor
 
 MODEL_PATH = Path(".cache/models/cnn_cifar.pth")
 
@@ -89,6 +92,7 @@ class Backbone(nn.Module):
             nn.Linear(64, num_classes),
         )
 
+    # Will be run by PyTorch under the hood
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
         return self.classifier(x)
@@ -104,13 +108,25 @@ class CNNModel(BaseModel):
         self._input_channels = 1  # grayscale CIFAR-10
 
     def create_model(self, **params) -> None:
+        """Create the CNN model with given parameters."""        
+        # Extract architecture-specific parameters for Backbone creation      
+        kernel_size = params.get("kernel_size", 3)
+        stride = params.get("stride", 1)
+        learning_rate = params.get("learning_rate", 3e-4)
+        batch_size = params.get("batch_size", 64)
+        weight_decay = params.get("weight_decay", 1e-3)
+        optimizer = params.get("optimizer", "AdamW")
+        
+        # Also ensure default values are set if not provided
+        self.params.setdefault("kernel_size", kernel_size)
+        self.params.setdefault("stride", stride)
+        self.params.setdefault("learning_rate", learning_rate)
+        self.params.setdefault("batch_size", batch_size)
+        self.params.setdefault("weight_decay", weight_decay)
+        self.params.setdefault("optimizer", optimizer)
+
         # Store all parameters passed in
         self.params.update(params)
-        
-        # Extract architecture-specific parameters for Backbone creation
-        kernel_size = self.params.get("kernel_size", 3)
-        stride = self.params.get("stride", 1)
-        
         self.network = Backbone(
             in_channels=self._input_channels,
             num_classes=self.num_classes,
@@ -120,18 +136,10 @@ class CNNModel(BaseModel):
 
     def train(
         self,
-        X_train: List[np.ndarray],
-        y_train: np.ndarray,
-        X_val: List[np.ndarray],
-        y_val: np.ndarray,
+        train_data,  # Can be DataLoader or raw data
+        val_data,    # Can be DataLoader or raw data  
+        config: Optional[TrainingConfig] = None,
         device: Optional[torch.device] = None,
-        epochs: Optional[int] = None,
-        patience: Optional[int] = None,
-        min_delta: Optional[float] = None,
-        checkpoint_path: Optional[Path] = None,
-        grad_clip_norm: Optional[float] = None,
-        writer: Optional[SummaryWriter] = None,
-        num_workers: int = 2,
         verbose: bool = True,
     ) -> Dict[str, float]:
         if self.network is None:
@@ -139,29 +147,28 @@ class CNNModel(BaseModel):
         device = device or get_device()
         self.network = self.network.to(device)
 
-        default_config = TrainingConfig()
-        config = TrainingConfig(
-            learning_rate=float(self.params.get("learning_rate", default_config.learning_rate)),
-            weight_decay=float(self.params.get("weight_decay", default_config.weight_decay)),
-            optimizer=self.params.get("optimizer", default_config.optimizer),
-            batch_size=int(self.params.get("batch_size", default_config.batch_size)),
-            # Infrastructure params: use provided values or defaults
-            epochs=epochs if epochs is not None else default_config.epochs,
-            patience=patience if patience is not None else default_config.patience,
-            min_delta=min_delta if min_delta is not None else default_config.min_delta,
-            checkpoint_path=checkpoint_path if checkpoint_path is not None else default_config.checkpoint_path,
-            grad_clip_norm=grad_clip_norm if grad_clip_norm is not None else default_config.grad_clip_norm,
-            writer=writer if writer is not None else default_config.writer,
-        )
-
-        train_loader, val_loader = create_dataloaders(
-            X_train,
-            y_train,
-            X_val,
-            y_val,
-            batch_size=config.batch_size,
-            num_workers=num_workers,
-        )
+        config = config or TrainingConfig()
+        
+        # Handle different input types - convert to DataLoaders if needed
+        if isinstance(train_data, DataLoader) and isinstance(val_data, DataLoader):
+            train_loader = train_data
+            val_loader = val_data
+        else:
+            # Raw data provided - create DataLoaders
+            from framework.data_utils import create_dataloaders
+            if hasattr(train_data, '__len__') and hasattr(val_data, '__len__'):
+                # Assume train_data is X_train, val_data is y_train for backwards compatibility
+                if len(train_data) > 0 and not isinstance(train_data[0], (int, float)):
+                    # This looks like X_train, y_train, X_test, y_test pattern
+                    # Need to extract from the calling pattern
+                    batch_size = getattr(config, 'batch_size', 64)
+                    train_loader, val_loader = create_dataloaders(
+                        train_data, val_data, train_data[:len(val_data)], val_data, batch_size=batch_size
+                    )
+                else:
+                    raise ValueError("Invalid data format provided to CNN.train()")
+            else:
+                raise ValueError("Invalid data format provided to CNN.train()")
 
         optimizer = self._build_optimizer(self.network, config)
         scheduler = optim.lr_scheduler.OneCycleLR(
@@ -256,7 +263,8 @@ class CNNModel(BaseModel):
 
     def predict(
         self,
-        data_loader: DataLoader,
+        data: DataLoader | List | np.ndarray,
+        labels: List | np.ndarray = None,
         device: Optional[torch.device] = None,
         return_probabilities: bool = False,
     ) -> torch.Tensor:
@@ -265,6 +273,19 @@ class CNNModel(BaseModel):
         device = device or get_device()
         network = self.network.to(device)
         network.eval()
+
+        # Handle data input - create DataLoader if raw data is provided
+        if isinstance(data, DataLoader):
+            data_loader = data
+        else:
+            # Raw data provided - create DataLoader
+            from framework.data_utils import create_dataloaders
+            if labels is None:
+                labels = [0] * len(data)  # dummy labels for prediction
+            batch_size = getattr(self, 'params', {}).get('batch_size', 64)
+            _, data_loader = create_dataloaders(
+                data[:1], [labels[0]], data, labels, batch_size=batch_size
+            )
 
         outputs = []
         with torch.no_grad():
@@ -279,8 +300,8 @@ class CNNModel(BaseModel):
 
     def evaluate(
         self,
-        X: List[np.ndarray],
-        y: np.ndarray,
+        data,  # Can be DataLoader or raw data
+        labels=None,  # Required if data is not DataLoader
         device: Optional[torch.device] = None,
         criterion: Optional[nn.Module] = None,
         num_workers: int = 0,
@@ -291,16 +312,18 @@ class CNNModel(BaseModel):
         network = self.network.to(device)
         network.eval()
 
-        default_config = TrainingConfig()
-        batch_size = int(self.params.get("batch_size", default_config.batch_size))
-        dataset = CIFAR10Dataset(X, y)
-        data_loader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-            pin_memory=torch.cuda.is_available(),
-        )
+        # Handle data input - create DataLoader if raw data is provided
+        if isinstance(data, DataLoader):
+            data_loader = data
+        else:
+            # Raw data provided - create DataLoader
+            from framework.data_utils import create_dataloaders
+            if labels is None:
+                raise ValueError("labels must be provided when data is not a DataLoader")
+            batch_size = getattr(self, 'params', {}).get('batch_size', 64)
+            _, data_loader = create_dataloaders(
+                data[:1], [labels[0]], data, labels, batch_size=batch_size
+            )
 
         criterion = criterion or nn.CrossEntropyLoss()
 
@@ -338,19 +361,26 @@ class CNNModel(BaseModel):
         f1_macro = report["macro avg"]["f1-score"]
         f1_micro = report.get("micro avg", {}).get("f1-score", f1_score(y_true, y_pred, average="micro", zero_division=0))
         
-        roc_auc = roc_auc_score(y_true, y_proba, average="macro", multi_class="ovr")
-
-        avg_loss = total_loss / len(data_loader)
-
-        return {
-            "loss": avg_loss,
+        # Initialize metrics without ROC AUC first
+        metrics = {
+            "loss": total_loss / len(data_loader), # average loss
             "accuracy": accuracy,
             "precision_macro": precision_macro,
             "recall_macro": recall_macro,
             "f1_macro": f1_macro,
             "f1_micro": f1_micro,
-            "roc_auc": roc_auc,
         }
+        
+        # Try to calculate ROC AUC, but handle potential errors gracefully
+        try:
+            roc_auc = roc_auc_score(y_true, y_proba, average="macro", multi_class="ovr")
+            metrics["roc_auc"] = roc_auc
+        except ValueError as e:
+            # ROC AUC calculation failed (likely due to insufficient samples per class)
+            # Continue without ROC AUC metric
+            print(f"Warning: Could not calculate ROC AUC: {e}")
+
+        return metrics
 
     def get_param_space(self) -> Dict[str, ParamSpace]:
         return {
