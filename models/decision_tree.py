@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 from sklearn.metrics import classification_report, f1_score, roc_auc_score
@@ -21,7 +21,7 @@ class DecisionTreeModel(BaseModel):
         self.params.update(params)
         self.estimator = DecisionTreeClassifier(**self.params)
 
-    def train(self, X_train: List[np.ndarray], y_train: np.ndarray) -> DecisionTreeClassifier:
+    def train(self, X_train: np.ndarray, y_train: np.ndarray) -> DecisionTreeClassifier:
         if self.estimator is None:
             self.create_model()
         estimator = self.estimator
@@ -29,7 +29,7 @@ class DecisionTreeModel(BaseModel):
         estimator.fit(X_train, y_train)
         return estimator
 
-    def predict(self, X: List[np.ndarray]):
+    def predict(self, X: np.ndarray):
         if self.estimator is None:
             raise RuntimeError(
                 "Estimator has not been created. Call create_model() first."
@@ -37,7 +37,7 @@ class DecisionTreeModel(BaseModel):
         check_is_fitted(self.estimator)
         return self.estimator.predict(X)
 
-    def predict_proba(self, X: List[np.ndarray]):
+    def predict_proba(self, X: np.ndarray):
         if self.estimator is None:
             raise RuntimeError(
                 "Estimator has not been created. Call create_model() first."
@@ -49,7 +49,7 @@ class DecisionTreeModel(BaseModel):
         check_is_fitted(self.estimator)
         return self.estimator.predict_proba(X)
 
-    def evaluate(self, X_test: List[np.ndarray], y_test: np.ndarray) -> Dict[str, float]:
+    def evaluate(self, X_test: np.ndarray, y_test: np.ndarray) -> Dict[str, float]:
         if self.estimator is None:
             raise RuntimeError(
                 "Estimator has not been created. Call create_model() first."

@@ -9,20 +9,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Literal
 
+from models.decision_tree import DecisionTreeModel
+from models.knn import KNNModel
+
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import torch
 
-from framework.data_utils import (
-    load_cifar10_data,
-    prepare_data,
-    split_train_val,
-)
+from framework.data_utils import prepare_dataset
 from framework.fitness import calculate_composite_fitness
-from models.base import get_model_by_name
-from models.cnn import TrainingConfig
+from models.factory import get_model_by_name
+from models.cnn import CNNModel, TrainingConfig
 from search import RandomSearch, GeneticAlgorithm, ParticleSwarmOptimization
 from dataclasses import replace
 
@@ -40,35 +39,6 @@ def set_seeds(seed: int):
         torch.cuda.manual_seed_all(seed)
 
 
-def prepare_dataset() -> Dict[str, Any]:
-    """Prepare and return the CIFAR-10 dataset."""
-    ds_dict = load_cifar10_data()
-    train_images, train_labels = prepare_data(ds_dict, "train")
-    test_images, test_labels = prepare_data(ds_dict, "test")
-
-    X_train, y_train, X_val, y_val = split_train_val(
-        train_images, train_labels, val_ratio=0.1
-    )
-
-    def flatten(images):
-        stacked = np.stack([np.asarray(img, dtype=np.float32) for img in images])
-        return stacked.reshape(len(images), -1)
-
-    train_flat = flatten(X_train)
-    val_flat = flatten(X_val)
-    test_flat = flatten(test_images)
-
-    return {
-        "train_images": X_train,
-        "train_labels": y_train,
-        "val_images": X_val,
-        "val_labels": y_val,
-        "test_images": test_images,
-        "test_labels": test_labels,
-        "train_flat": train_flat,
-        "val_flat": val_flat,
-        "test_flat": test_flat,
-    }
 
 
 def evaluate_model(
@@ -81,10 +51,12 @@ def evaluate_model(
     model = get_model_by_name(model_key)
 
     if model_key in {"dt", "knn"}:
+        assert isinstance(model, (DecisionTreeModel, KNNModel))
         model.create_model(**params)
         model.train(data["train_flat"], data["train_labels"])
         metrics = model.evaluate(data["val_flat"], data["val_labels"])
     elif model_key == "cnn":
+        assert isinstance(model, CNNModel)
         model.create_model(**params)
         default_config = TrainingConfig()
         config = replace(
