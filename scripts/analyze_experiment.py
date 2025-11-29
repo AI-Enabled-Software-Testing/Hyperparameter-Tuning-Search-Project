@@ -57,6 +57,86 @@ def load_experiment_runs(experiment_name: str) -> List[Dict[str, Any]]:
     print(f"Loaded {len(runs)} runs from {experiment_name}")
     return runs
 
+def plot_plateaus(runs: List[Dict[str, Any]], output_dir: Path, experiment_name: str, threshold: float | None):
+    """Plot plateau detection for each run."""
+    for i, run in enumerate(runs):
+        convergence = run["convergence"]
+        evaluations = np.array(convergence["evaluations"])
+        best_fitness = np.array(convergence["best_fitness"])
+
+        # Plateau detection: where best_fitness does not increase (or below threshold)
+        diffs = np.diff(best_fitness)
+        if threshold is not None:
+            thresh = threshold
+        else:
+            thresh = 0.0  # exactly zero diff means strict plateau
+
+        plateau_starts = np.where(np.abs(diffs) <= thresh)[0]
+        escapes = np.where(diffs > thresh)[0]
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(evaluations, best_fitness, label="Best Fitness", color="blue")
+        # Highlight plateau regions
+        for idx in plateau_starts:
+            ax.axvspan(evaluations[idx], evaluations[idx + 1], color="red", alpha=0.2)
+        # Mark escapes from plateaus
+        if len(escapes) > 0:
+            ax.scatter(evaluations[escapes + 1], best_fitness[escapes + 1], color='red', s=30, label="Plateau Escapes")
+
+        ax.set_xlabel("Evaluation", fontsize=12)
+        ax.set_ylabel("Best Fitness", fontsize=12)
+        ax.set_title(f"Plateau Detection - {experiment_name.upper()} Run {i+1}", fontsize=14, fontweight="bold")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+        plt.tight_layout()
+        output_path = output_dir / f"plateau_run_{i+1}.png"
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"Saved: {output_path}")
+
+def plot_convergence(runs: List[Dict[str, Any]], output_dir: Path, experiment_name: str):
+    """Plot convergence curves for each run (one plot per run)."""
+    for i, run in enumerate(runs):
+        convergence = run["convergence"]
+        evaluations = np.array(convergence["evaluations"])
+        best_fitness = np.array(convergence["best_fitness"])
+        current_fitness = np.array(convergence["current_fitness"])
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(evaluations, best_fitness, label="Best Fitness", color="blue")
+        ax.plot(evaluations, current_fitness, label="Current Fitness", color="orange", alpha=0.7)
+        
+        ax.set_xlabel("Evaluation", fontsize=12)
+        ax.set_ylabel("Fitness", fontsize=12)
+        ax.set_title(f"Convergence Curve - {experiment_name.upper()} Run {i+1}", fontsize=14, fontweight="bold")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        
+        plt.tight_layout()
+        output_path = output_dir / f"convergence_run_{i+1}.png"
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"Saved: {output_path}")
+
+def plot_convergence_comparison(experiment_names: List[str], model: str, output_path: Path):
+    """
+    Plot convergence curves for multiple experiments (e.g., GA Standard vs Memetic) on the same plot.
+    """
+    for exp_name in experiment_names:
+        runs = load_experiment_runs(f"{model}-{exp_name}")
+        for run in runs:
+            evaluations = np.array(run["convergence"]["evaluations"])
+            best_fitness = np.array(run["convergence"]["best_fitness"])
+            plt.plot(evaluations, best_fitness, label=f"{exp_name} {run['run_dir']}")
+    plt.xlabel("Evaluations")
+    plt.ylabel("Best Fitness")
+    plt.title(f"Convergence: {model.upper()} - " + " vs ".join(experiment_names))
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {output_path}")
 
 def _exp_smooth(values: np.ndarray, smoothing_slider: float = 0.9) -> np.ndarray:
     """Apply exponential smoothing to a sequence of values."""
@@ -361,6 +441,16 @@ def main():
     plot_current_fitness_overlay(runs, output_dir, args.experiment)
     plot_time_boxplot(runs, output_dir, args.experiment)
     plot_final_fitness_boxplot(runs, output_dir, args.experiment)
+    # Plot convergence curves for each run
+    plot_convergence(runs, output_dir, args.experiment)
+    # Plot plateau detection for each run
+    plot_plateaus(runs, output_dir, args.experiment, threshold=None)
+    # Plot comparison specifically for GA Standard vs Memetic
+    if "ga" in args.experiment.lower():
+        model = args.experiment.split("-")[0]
+        comparison_experiments = [f"{model}-ga-standard", f"{model}-ga-memetic"]
+        comparison_output_path = output_dir / "convergence_comparison.png"
+        plot_convergence_comparison(comparison_experiments, model, comparison_output_path)
     
     # Run PSO diagnostics if requested
     if args.diagnose_pso:
