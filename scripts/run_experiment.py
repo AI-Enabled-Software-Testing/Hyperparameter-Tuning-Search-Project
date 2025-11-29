@@ -309,7 +309,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--optimizer",
         type=str,
-        required=True,
         choices=["rs", "ga-standard", "ga-memetic", "pso"],
         help="Optimizer to use (rs=RandomSearch, ga-standard=GeneticAlgorithm Standard, ga-memetic=GeneticAlgorithm Memetic (For Local Search), pso=ParticleSwarmOptimization).",
     )
@@ -346,15 +345,28 @@ def main() -> None:
 
     # Handle -1 for all CPUs
     n_jobs = args.n_jobs if args.n_jobs > 0 else None
-    
-    run_experiment(
-        model_key=args.model,
-        optimizer_name=args.optimizer,
-        num_runs=args.runs,
-        evaluations=args.evaluations,
-        base_seed=args.seed,
-        n_jobs=n_jobs,
-    )
+
+    if args.optimizer is None:
+        # Assume running all optimizers
+        for optimizer_name in ["rs", "ga-standard", "ga-memetic", "pso"]:
+            run_experiment(
+                model_key=args.model,
+                optimizer_name=optimizer_name,
+                num_runs=args.runs,
+                evaluations=args.evaluations,
+                base_seed=args.seed,
+                n_jobs=n_jobs,
+            )
+    else:
+        # Run a Specific Experiment based on optimizer's name
+        run_experiment(
+            model_key=args.model,
+            optimizer_name=args.optimizer,
+            num_runs=args.runs,
+            evaluations=args.evaluations,
+            base_seed=args.seed,
+            n_jobs=n_jobs,
+        )
 
 
 if __name__ == "__main__":
