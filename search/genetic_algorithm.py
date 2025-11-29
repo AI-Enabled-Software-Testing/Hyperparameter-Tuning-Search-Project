@@ -60,7 +60,7 @@ class GeneticAlgorithm(Optimizer):
         
         all_params = self._initialize_population(populationSize) # Initial Population
         results = []
-        for gen in range(generations):
+        for gen in range(generations+1):
             if verbose:
                 print(f"Generation {gen+1}/{generations}")
             
