@@ -19,12 +19,12 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 ## Metaheuristic Guided Search
 
 ### Baseline
-* [**Randomized Search**](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.RandomizedSearchCV.html)
-* [**Grid Search**](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html)
+* **Random Search** with a fixed and reproducible base seed across runs
 
 ### Other Algorithms
-* **Evolutionary Algorithm**: Memetic Algorithm (a specialized Genetic Algorithm)
-* **Simulated Annealing**
+* **Evolutionary Algorithm**: 
+   * Memetic Algorithm (a specialized Genetic Algorithm that escapes local search's plateau with one more tournament selection based on a `radius` parameter)
+   * Standard Genetic Algorithm
 * **Swarm Optimization**: Particle Swarm Optimization
 
 ## Prerequisites
@@ -105,3 +105,45 @@ The script includes:
 
 ### Model Training with a Customized Tuning Process
 * A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\model_training_flow.ipynb`, including: a shorter demo with less data, data and model loading processes, an exhaustive tuning (without metaheuristics) on only the validation set, training and evaluating on the best found set of hyperparameters for each model. Another notebook named `rs_training.ipynb` in the same directory focuses primarily on using a random solver (our choice of baseline) to search for the best set of hyperparameters based on a more updated version of classes and functions interfaces from our models. 
+
+### Run a Search quickly
+* You can run a quick hyperparameter search based on this script: 
+```bash
+python hparam_search.py
+```
+**Available arguments:**
+- `--model`: Model Choices - `["dt", "knn", "cnn"]`, default `dt`.
+- `--trials`: Number of Evaluations - default 5
+
+* It is designed for quick, simple hyperparameter optimization only with our baseline (random search), mainly for exploratory runs or TensorBoard logging.
+* It supports `dt`, `knn`, and `cnn` model options, via script arguments, but the CNN training is simpler (no explicit config object, no patience/early stopping control).
+* It passes parameters directly to model creation/training; and so, it'll be less flexible for advanced training configs (e.g., custom epochs, patience).
+* It is intended for quick experiments, visualizations, and debugging with a single optimizer.
+
+### Run a Full Experiment
+* You can run a quick hyperparameter search based on this script: 
+```bash
+python scripts/run_experiment.py
+```
+**Available arguments:**
+- `--model`: Model Choices - `["dt", "knn", "cnn"]`, default `dt`. **Mandatory** Argument!!!
+- `--runs`: Number of independent runs - default 1.
+- `--trials`: Number of Evaluations - default 5.
+- `--evaluations`: Number of fitness evaluations per run - default 50
+- `--seed`: Base seed for randomization - default 42.
+- `--n-jobs`: Number of parallel workers - default 1 for a sequential run. Use -1 for all CPUs.
+
+* It is designed for systematic, reproducible experiments across all kinds of optimizers.
+* All optimizers are supported and selectable via CLI.
+* It saves results, convergence traces, and summaries to disk for later analysis (but not on TensorBoard).
+* For CNN, it uses a TrainingConfig object for fine-grained control (learning rate, weight decay, optimizer, batch size, patience); and disables early stopping for CNN by default for fair comparison.
+* Given its flexibility and robustness, it is intended for benchmarking, comparison, and research—especially when comparing optimizer performanc.
+
+### Analyze Results
+Upon completion of an execution from the `run_experiment.py` script, you will likely get some folders under `.cache/experiment` folder. You can visualize plots for analysis based on this script: 
+```bash
+python scripts/analyze_experiment.py`
+```
+**Available arguments:**
+- `--experiment`: Name of Experiment - `['cnn-rs', 'dt-ga', 'knn-pso']`
+- `--diagnose-pso`: Whether it runs diagnostics for PSO search.
