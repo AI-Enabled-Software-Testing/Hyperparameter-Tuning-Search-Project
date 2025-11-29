@@ -147,3 +147,20 @@ python scripts/analyze_experiment.py`
 **Available arguments:**
 - `--experiment`: Name of Experiment - `['cnn-rs', 'dt-ga', 'knn-pso']`
 - `--diagnose-pso`: Whether it runs diagnostics for PSO search.
+
+#### Supported Plots
+* Plateau Detection
+* Convergence Per Run
+* Convergence Comparison. (Note: If you want to recompile this graph of the exact same pair of experiment, please delete the file from `.cache/experiment_figures/` folder, because the script tries to avoid generating repeated graphs.)
+* Best Fitness over Evaluations with mean and std.
+* Total Time Across Runs.
+* Final Fitness Values Across Runs.
+
+#### Analysis Specific to PSO
+The `scripts/analyze_experiments.py` script tries to print diagnostics of the particle swarm optimization per run with advice.
+
+### Analysis Specific to GA
+You can also run the following script to run and visualize experiments in a scripted pipeline:
+```bash
+python scripts/analyze_ga.py
+```
