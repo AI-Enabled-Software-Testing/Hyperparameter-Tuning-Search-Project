@@ -115,7 +115,7 @@ class GeneticAlgorithm(Optimizer):
             elites: List[Dict[str, Any]] = self._selection(
                 all_params, # Initial Population
                 fitness_scores, # Get the Fitness scores from the 3rd element
-                populationSize // 2 # Elitism: shortlisting top 50%
+                populationSize // 2 # Elitism: shortlisting top 50%, also suggested by the paper
             )
             # A brief Checking
             assert len(elites) < len(all_params), "Chosen Elites should be fewer than the total population"

@@ -9,11 +9,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Literal
 
-from models.decision_tree import DecisionTreeModel
-from models.knn import KNNModel
-
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from models.decision_tree import DecisionTreeModel
+from models.knn import KNNModel
 
 import numpy as np
 import torch
@@ -252,9 +252,9 @@ def run_experiment(
         )
 
         # Set Radius for GA
-        if optimizer_name.endswith("ga-memetic"):
-            # Elite = 20% of parameters
-            radius = round(len(param_space) * 0.2)
+        if optimizer_name.endswith("memetic"):
+            # Suggested by the paper: https://ieeexplore.ieee.org/document/8516989
+            radius = 5
         else:
             # Standard GA
             radius = None
@@ -269,8 +269,10 @@ def run_experiment(
         if optimizer_name.startswith("ga"):
             result = optimizer.run(
                 trials=evaluations,
-                populationSize=20,
-                generations=200,
+                # Population Size and Generations, are suggested by the paper: 
+                # https://ieeexplore.ieee.org/document/8516989
+                populationSize=30,
+                generations=10,
                 radius=radius,
                 verbose=True,
             )
@@ -334,7 +336,7 @@ def parse_args() -> argparse.Namespace:
         "--n-jobs",
         type=int,
         default=1,
-        help="Number of parallel workers for RandomSearch and PSO (default: 1, sequential). Use -1 for all CPUs.",
+        help="Number of parallel workers (default: 1, sequential). Use -1 for all CPUs.",
     )
     return parser.parse_args()
 
@@ -353,7 +355,8 @@ def main() -> None:
                 model_key=args.model,
                 optimizer_name=optimizer_name,
                 num_runs=args.runs,
-                evaluations=args.evaluations,
+                # The paper did specify evaluations for GA differently
+                evaluations=args.evaluations if not optimizer_name.startswith("ga") else 300,
                 base_seed=args.seed,
                 n_jobs=n_jobs,
             )
