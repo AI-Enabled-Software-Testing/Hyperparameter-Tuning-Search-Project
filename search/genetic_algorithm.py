@@ -107,6 +107,9 @@ class GeneticAlgorithm(Optimizer):
                     fitness_scores,
                     radius # Get the fittest S individuals from the population
                 )
+            else:
+                if verbose:
+                    print("Standard Genetic Algorithm runs without local search.")
 
             # 1. Selection
             elites: List[Dict[str, Any]] = self._selection(
