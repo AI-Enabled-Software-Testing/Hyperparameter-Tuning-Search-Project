@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import List, Dict, Any
 
@@ -409,7 +410,7 @@ def diagnose_pso_hyperparameters(runs: List[Dict[str, Any]], experiment_name: st
     print("\n" + "=" * 80)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Analyze experiment results and generate visualization figures."
     )
@@ -450,7 +451,8 @@ def main():
         model = args.experiment.split("-")[0]
         comparison_experiments = [f"{model}-ga-standard", f"{model}-ga-memetic"]
         comparison_output_path = output_dir / "convergence_comparison.png"
-        plot_convergence_comparison(comparison_experiments, model, comparison_output_path)
+        if not os.path.exists(comparison_output_path):
+            plot_convergence_comparison(comparison_experiments, model, comparison_output_path)
     
     # Run PSO diagnostics if requested
     if args.diagnose_pso:
@@ -460,5 +462,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())
 
