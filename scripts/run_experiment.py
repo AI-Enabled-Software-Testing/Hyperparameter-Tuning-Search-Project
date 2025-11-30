@@ -108,21 +108,14 @@ def get_optimizer(
             f"Available: {list(optimizer_map.keys())}"
         )
 
-    if optimizer_name.lower() in {"rs", "pso"}:
+    if optimizer_name.lower() in {"rs", "pso"} \
+        or optimizer_name.lower().startswith("ga"):
         return optimizer_class(
             param_space=param_space,
             evaluate_fn=evaluate_fn,
             metric_key="composite_fitness",
             seed=seed,
             n_jobs=n_jobs,
-        )
-    elif optimizer_name.lower().startswith("ga"):
-        return optimizer_class(
-            param_space=param_space,
-            evaluate_fn=evaluate_fn,
-            metric_key="composite_fitness",
-            seed=seed,
-            n_jobs=n_jobs
         )
     else:
         return optimizer_class(
@@ -251,14 +244,6 @@ def run_experiment(
             optimizer_name, param_space, evaluate_fn, seed=run_seed, n_jobs=n_jobs
         )
 
-        # Set Radius for GA
-        if optimizer_name.endswith("memetic"):
-            # Suggested by the paper: https://ieeexplore.ieee.org/document/8516989
-            radius = 5
-        else:
-            # Standard GA
-            radius = None
-
         # Create run directory with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         run_dir = experiment_dir / f"run_{timestamp}"
@@ -266,18 +251,7 @@ def run_experiment(
         # Run optimization
         print(f"Running {optimizer_name.upper()} with {evaluations} evaluations...")
         start_time = time.perf_counter()
-        if optimizer_name.startswith("ga"):
-            result = optimizer.run(
-                trials=evaluations,
-                # Population Size and Generations, are suggested by the paper: 
-                # https://ieeexplore.ieee.org/document/8516989
-                populationSize=30,
-                generations=10,
-                radius=radius,
-                verbose=True,
-            )
-        else:
-            result = optimizer.run(trials=evaluations, verbose=True)
+        result = optimizer.run(trials=evaluations, verbose=True)
         total_time = time.perf_counter() - start_time
 
         # Save results
