@@ -9,11 +9,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Literal
 
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from models.decision_tree import DecisionTreeModel
 from models.knn import KNNModel
 
-# Add project root to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import torch
