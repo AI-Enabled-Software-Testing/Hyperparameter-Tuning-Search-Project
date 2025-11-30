@@ -189,7 +189,12 @@ class ParticleSwarmOptimization(Optimizer):
         c2: float = 1.5,
     ) -> None:
         super().__init__(param_space, evaluate_fn, metric_key, seed)
-        # Vector to param space transformer
+        self.n_jobs = n_jobs if n_jobs is not None else -1
+        self.n_particles = n_particles
+        self.w = w
+        self.c1 = c1
+        self.c2 = c2
+        self._rng = random.Random(seed)
         self.transformer = ParameterTransformer(self.param_space)
 
     def run(
