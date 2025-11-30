@@ -216,6 +216,34 @@ class GeneticAlgorithm(Optimizer):
                 best_metrics = metrics
                 if verbose:
                     print(f"  -> New best! {self.metric_key}={score:.4f}")
+            elif score == best_score:
+                if verbose:
+                    print(f"  -> Tie detected for {self.metric_key}={score:.4f}, applying tiebreaker.")
+                # In case of a tie
+                if not best_params:
+                    # in case if best_params is not found yet
+                    best_score = score
+                    best_params = params
+                    best_metrics = metrics
+                    if verbose:
+                        print(f"  -> New best! {self.metric_key}={score:.4f}")
+                else:
+                    if verbose:
+                        print(f"  -> Existing best params: {best_params}")
+                        print(f"  -> Current params: {params}")
+                    # Keep the search with less duration
+                    existing_duration = next(
+                        item["duration_sec"]
+                        for item in history
+                        if item["params"] == best_params
+                    )
+                    if duration < existing_duration:
+                        best_score = score
+                        best_params = params
+                        best_metrics = metrics
+                        if verbose:
+                            print(f"  -> Tiebreaker won! Updated best params with shorter duration.")
+                            print(f"     New best params: {best_params} with duration {duration:.4f} sec")
 
         history.sort(key=lambda x: x["trial"])
 
