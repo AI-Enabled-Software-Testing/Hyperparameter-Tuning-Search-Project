@@ -287,7 +287,30 @@ class ParticleSwarmOptimization(Optimizer):
                     
                     if verbose:
                         print(f"  Gen {generation}: New Best {self.metric_key}={score:.4f}")
-
+                elif score == g_best_score:
+                    if verbose:
+                        print(f"  Tie detected for {self.metric_key}={score:.4f}, applying tiebreaker.")
+                    # In case of a tie
+                    if not g_best_params:
+                        g_best_score = score
+                        g_best_params = p.current_params_dict.copy()
+                        g_best_metrics = metrics
+                    else:
+                        if verbose:
+                            print(f"    -> Existing best params: {g_best_params} with duration {duration:.4f}s")
+                            print(f"    -> Current params: {p.current_params_dict} with duration {duration:.4f}s")
+                        # Keep the search with less duration
+                        existing_duration = next(
+                            rec["duration_sec"] 
+                            for rec in history 
+                            if rec["params"] == g_best_params
+                        )
+                        if duration < existing_duration:
+                            g_best_params = p.current_params_dict.copy()
+                            g_best_metrics = metrics
+                            if verbose:
+                                print("  Tie-breaker won! Updated global best parameters with shorter duration.")
+                                print(f" New best params: {p.current_params_dict} with duration {duration:.4f}s")
                 rec = {
                     "trial": evals_done,
                     "params": p.current_params_dict.copy(),
