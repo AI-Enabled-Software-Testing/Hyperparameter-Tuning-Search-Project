@@ -86,7 +86,6 @@ class GeneticAlgorithm(Optimizer):
             remaining = trials - evals_done
             all_params = all_params[:remaining] if remaining < len(all_params) else all_params
 
-            
             if self.n_jobs == 1:
                 for geneID, params in enumerate(all_params, start=1):
                     # all_params is a List of Dicts
@@ -131,7 +130,8 @@ class GeneticAlgorithm(Optimizer):
                 all_params = self._selection(
                     all_params,
                     fitness_scores,
-                    radius=self.radius # Get the fittest r% individuals according to radius
+                    radius=self.radius, # Get the fittest r% individuals according to radius
+                    num_parents=None # Placeholder
                 )
             else:
                 if verbose:
@@ -141,6 +141,7 @@ class GeneticAlgorithm(Optimizer):
             elites: List[Dict[str, Any]] = self._selection(
                 all_params, # Initial Population
                 fitness_scores, # Get the Fitness scores from the 3rd element
+                radius=None, # Placeholder
                 # Use the current length of all_params because it might be shortlisted if MA
                 num_parents=len(all_params) // 2 # Elitism: shortlisting top 50%, also suggested by the paper
             )
@@ -150,8 +151,15 @@ class GeneticAlgorithm(Optimizer):
 
             # 2. Crossover
             offspring: List[Dict[str, Any]] = [] # They are evolved children
-            # Choose parents for crossover from elites
-            while len(offspring) < (self.populationSize - len(elites)):
+            max_offspring = max(0, self.populationSize - len(elites))
+            attempts = 0
+            max_attempts = max_offspring * 10  # Prevent infinite loop
+            while len(offspring) < max_offspring and attempts < max_attempts:
+                if len(elites) == 0:
+                    # Fallback to entire population if no elites
+                    elites = all_params
+                    if verbose:
+                        print("No elites selected; reverting to entire population for parent selection.")
                 parent1 = self._random.choice(elites)
                 parent2 = self._random.choice(elites)
                 # Ensure parents are not identical
@@ -159,10 +167,11 @@ class GeneticAlgorithm(Optimizer):
                     # The papar suggests 1-point crossover
                     child = self._crossover(parent1, parent2, n=1)
                     offspring.append(child)
+                attempts += 1
             # A Brief Checking
-            assert len(offspring) < self.populationSize, "Number of Offsprings should be less than the population size"
+            assert len(offspring) <= max_offspring, "Number of Offsprings should not exceed the allowed maximum"
             assert len(offspring) < len(all_params), "Evolved Offsprings should be fewer than the total population"
-            
+
             # 3. Mutation
             # We get a list of mutated children from crossover offsprings
             mutated_offspring: List[Dict[str, Any]] = []
@@ -172,11 +181,18 @@ class GeneticAlgorithm(Optimizer):
             # A Brief Checking
             assert len(mutated_offspring) == len(offspring), "Number of Mutated Offsprings should match the Offsprings"
 
-            # Replacing the population with new generation: elites + offspring + mutated_offspring
-            all_params = elites + offspring + mutated_offspring
-            # A Brief Checking
-            assert len(all_params) >= self.populationSize, "New generation population size should be at least the defined population size"
-            
+            # Replacing the population with new generation: elites + mutated_offspring
+            new_generation = elites + mutated_offspring
+            # If new_generation is less than populationSize, fill with random samples
+            if len(new_generation) < self.populationSize:
+                needed = self.populationSize - len(new_generation)
+                new_generation += self._initialize_population(needed)
+            # If new_generation is more than populationSize, trim it
+            if len(new_generation) > self.populationSize:
+                new_generation = new_generation[:self.populationSize]
+            all_params = new_generation
+            assert len(all_params) == self.populationSize, "New generation population size should match the defined population size"
+
             if verbose:
                 print(f"Generation {gen+1} completed. Current Population size: {len(all_params)}")
 
@@ -287,7 +303,7 @@ class GeneticAlgorithm(Optimizer):
         """Initialize the population with random parameter sets."""
         return [self._sample_parameters() for _ in range(population_size)]
     
-    def _selection(self, population: List[Dict[str, Any]], fitness_scores: List[float], num_parents: int | None, radius: float = 0.15) -> List[Dict[str, Any]]:
+    def _selection(self, population: List[Dict[str, Any]], fitness_scores: List[float], num_parents: int | None = None, radius: float | None = 0.15) -> List[Dict[str, Any]]:
         """Select the top individuals based on fitness scores."""
         # Pair each individual with its fitness score
         paired = list(zip(population, fitness_scores))
@@ -299,7 +315,7 @@ class GeneticAlgorithm(Optimizer):
         if num_parents is not None:
             selected = [individual for individual, score in paired[:num_parents]]
         else:
-            if radius <= 0 or radius > 1:
+            if radius is None or radius <= 0 or radius > 1:
                 raise ValueError("radius must be in the range (0, 1]")
             # Only get the top <radius> % of individuals
             cutoff = int(len(paired) * radius)
