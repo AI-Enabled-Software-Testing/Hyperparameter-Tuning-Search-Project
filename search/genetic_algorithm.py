@@ -127,7 +127,7 @@ class GeneticAlgorithm(Optimizer):
                 if verbose:
                     print(f"It is a Memetic GA with local search radius: {self.radius}")
                 # Select fittest individuals for local search
-                all_params = self._selection(
+                elites = self._selection(
                     all_params,
                     fitness_scores,
                     radius=self.radius, # Get the fittest r% individuals according to radius
@@ -139,7 +139,7 @@ class GeneticAlgorithm(Optimizer):
 
             # 1. Selection
             elites: List[Dict[str, Any]] = self._selection(
-                all_params, # Initial Population
+                elites if 'elites' in locals() else all_params, # Initial Population
                 fitness_scores, # Get the Fitness scores from the 3rd element
                 radius=None, # Placeholder
                 # Use the current length of all_params because it might be shortlisted if MA
@@ -154,7 +154,7 @@ class GeneticAlgorithm(Optimizer):
             max_offspring = max(0, self.populationSize - len(elites))
             attempts = 0
             max_attempts = max_offspring * 10  # Prevent infinite loop
-            while len(offspring) < max_offspring and attempts < max_attempts:
+            while len(offspring) < max_offspring and attempts < max_attempts and len(offspring) < len(all_params):
                 if len(elites) == 0:
                     # Fallback to entire population if no elites
                     elites = all_params
@@ -170,8 +170,8 @@ class GeneticAlgorithm(Optimizer):
                 attempts += 1
             # A Brief Checking
             assert len(offspring) <= max_offspring, "Number of Offsprings should not exceed the allowed maximum"
-            assert len(offspring) < len(all_params), "Evolved Offsprings should be fewer than the total population"
-
+            assert len(offspring) < len(all_params), f"Evolved {len(offspring)} Offsprings should be fewer than the total population of {len(all_params)}"
+            
             # 3. Mutation
             # We get a list of mutated children from crossover offsprings
             mutated_offspring: List[Dict[str, Any]] = []
