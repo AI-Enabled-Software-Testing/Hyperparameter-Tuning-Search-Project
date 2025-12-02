@@ -4,6 +4,8 @@ import os
 import sys
 import multiprocessing
 
+import gc
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
 
@@ -79,6 +81,10 @@ if __name__ == "__main__":
         print("Some experiments failed.")
         exit(-1)
 
+    # Clean up experiment run variables
+    del run_jobs, results, pool
+    gc.collect()
+
     # Analyze Experiments
     analyze_jobs = []
     for model in models:
@@ -92,6 +98,10 @@ if __name__ == "__main__":
         print("Some analyses failed.")
         exit(-1)
 
+    # Clean up analysis variables
+    del analyze_jobs, analyze_results, pool
+    gc.collect()
+
     # Check Paths
     EXPERIMENT_ROOT = REPO_ROOT / ".cache" / "experiment"
     FIGURES_ROOT = REPO_ROOT / ".cache" / "experiment_figures"
@@ -102,3 +112,6 @@ if __name__ == "__main__":
     else:
         print("Experiment or Figures directories do not exist. Consider re-running the scripts.")
         exit(-1)
+    # Final cleanup
+    del venv_python_path, venv_path, models, optimizers, EXPERIMENT_ROOT, FIGURES_ROOT
+    gc.collect()
