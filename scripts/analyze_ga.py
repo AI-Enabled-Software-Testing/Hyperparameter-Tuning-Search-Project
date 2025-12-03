@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 import sys
 import gc
+import shutil
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
@@ -62,6 +63,12 @@ def analyze_experiment(model, optimizer, venv_python_path, venv_path):
         return False
     return True
 
+def experiment_exists(modelName: str, optimizerName: str) -> bool:
+    """Check if experiment results already exist."""
+    experiment_name = f"{modelName}_{optimizerName}_experiment"
+    experiment_file = REPO_ROOT / ".cache" / "experiment" / f"{experiment_name}.json"
+    return experiment_file.exists()
+
 if __name__ == "__main__":
     venv_python_path, venv_path = venv_setup()
 
@@ -70,30 +77,68 @@ if __name__ == "__main__":
 
     failed_runs = []
     failed_analyses = []
+    completed = []
+    skipped = []
     
-    # Run each experiment sequentially, analyze immediately after each successful run
-    for model in models:
-        for optimizer in optimizers:
-            print(f"\n{'='*80}")
-            print(f"Processing: {model.upper()} with {optimizer.upper()}")
-            print(f"{'='*80}\n")
-            
-            # Run experiment
-            run_success = run_experiment((model, optimizer, venv_python_path, venv_path))
-            
-            if run_success:
-                # Analyze immediately after successful run
-                analyze_success = analyze_experiment(model, optimizer, venv_python_path, venv_path)
+    try:
+        # Run each experiment sequentially, analyze immediately after each successful run
+        for model in models:
+            for optimizer in optimizers:
+                print(f"\n{'='*80}")
+                print(f"Processing: {model.upper()} with {optimizer.upper()}")
+                print(f"{'='*80}\n")\
                 
-                if not analyze_success:
-                    print(f"WARNING: Analysis failed for {model}-{optimizer}")
-                    failed_analyses.append(f"{model}-{optimizer}")
-            else:
-                print(f"ERROR: Experiment run failed for {model}-{optimizer}")
-                failed_runs.append(f"{model}-{optimizer}")
-            
-            # Small cleanup after each iteration
-            gc.collect()
+                # Check if experiment already exists
+                if experiment_exists(model, optimizer):
+                    print(f"Experiment {model}-{optimizer} already exists. Skipping...")
+                    skipped.append(f"{model}-{optimizer}")
+                    continue
+                
+                # Run experiment
+                run_success = run_experiment((model, optimizer, venv_python_path, venv_path))
+                
+                if run_success:
+                    # Analyze immediately after successful run
+                    analyze_success = analyze_experiment(model, optimizer, venv_python_path, venv_path)
+                    
+                    if not analyze_success:
+                        print(f"WARNING: Analysis failed for {model}-{optimizer}")
+                        failed_analyses.append(f"{model}-{optimizer}")
+                else:
+                    print(f"ERROR: Experiment run failed for {model}-{optimizer}")
+                    failed_runs.append(f"{model}-{optimizer}")
+                
+                # Small cleanup after each iteration
+                gc.collect()
+    except KeyboardInterrupt:
+        print("\n{'='*80}")
+        print("Process interrupted by user.")
+        print(f"{'='*80}\n")
+        
+        # Report progress instead of discarding
+        print(f"Completed: {len(completed)}/{len(models) * len(optimizers)} experiments")
+        if completed:
+            print("Successfully completed:")
+            for exp in completed:
+                print(f"  ✓ {exp}")
+        if skipped:
+            print("Skipped (already existed):")
+            for exp in skipped:
+                print(f"  ↷ {exp}")
+        if failed_runs:
+            print("Failed experiment runs:")
+            for exp in failed_runs:
+                print(f"  ✗ {exp}")
+        if failed_analyses:
+            print("Failed analyses:")
+            for exp in failed_analyses:
+                print(f"  ✗ {exp}")
+        
+        print(f"\n{'='*80}")
+        print("Partial results preserved. Re-run the script to resume.")
+        print(f"{'='*80}\n")
+        exit(130)  # Standard exit code for SIGINT
+
 
     # Report any failures
     if failed_runs or failed_analyses:
