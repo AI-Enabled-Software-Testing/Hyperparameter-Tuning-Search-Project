@@ -64,14 +64,17 @@ def analyze_experiment(model, optimizer, venv_python_path, venv_path):
 
 def get_available_memory_gb():
     mem = psutil.virtual_memory()
-    avaialable_memory = mem.available or mem.total or 0
-    return avaialable_memory / (1024 ** 3) # in gb
+    # Use available memory (includes reclaimable cache/buffers)
+    # Apply 90% safety margin to leave headroom for OS
+    available_memory = mem.available * 0.9
+    return available_memory / (1024 ** 3)  # in gb
 
 def allocate_job(memory_per_job_gb):
     available_memory_gb = get_available_memory_gb()
-    max_jobs = round(available_memory_gb // memory_per_job_gb)
+    max_jobs = int(available_memory_gb // memory_per_job_gb)
     cpu_count = multiprocessing.cpu_count()
-    return min(max_jobs, cpu_count) if max_jobs and max_jobs > 0 else 1
+    # Ensure at least 1 job, but don't exceed CPU count
+    return max(1, min(max_jobs, cpu_count))
 
 if __name__ == "__main__":
     venv_python_path, venv_path = venv_setup()
