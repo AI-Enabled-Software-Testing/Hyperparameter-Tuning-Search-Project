@@ -154,7 +154,7 @@ class GeneticAlgorithm(Optimizer):
             max_offspring = max(0, self.populationSize - len(elites))
             attempts = 0
             max_attempts = max_offspring * 10  # Prevent infinite loop
-            while len(offspring) < max_offspring and attempts < max_attempts and len(offspring) < len(all_params):
+            while len(offspring) < max_offspring and attempts < max_attempts:
                 if len(elites) == 0:
                     # Fallback to entire population if no elites
                     elites = all_params
@@ -170,7 +170,7 @@ class GeneticAlgorithm(Optimizer):
                 attempts += 1
             # A Brief Checking
             assert len(offspring) <= max_offspring, "Number of Offsprings should not exceed the allowed maximum"
-            assert len(offspring) < len(all_params), f"Evolved {len(offspring)} Offsprings should be fewer than the total population of {len(all_params)}"
+            assert len(offspring) <= len(all_params), f"Evolved {len(offspring)} Offsprings should not exceed the total population of {len(all_params)}"
             
             # 3. Mutation
             # We get a list of mutated children from crossover offsprings
