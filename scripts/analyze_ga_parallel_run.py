@@ -5,6 +5,7 @@ import sys
 import multiprocessing
 import psutil
 import gc
+import torch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
@@ -79,7 +80,14 @@ def allocate_job(memory_per_job_gb):
 if __name__ == "__main__":
     venv_python_path, venv_path = venv_setup()
 
-    models = ["dt", "knn", "cnn"]
+    # Dynamically adjust models based on available hardware
+    models = ["dt", "knn"]
+    if torch.cuda.is_available():
+        models.append("cnn")
+        print("GPU detected: Including CNN model")
+    else:
+        print("CPU-only detected: Excluding CNN model for faster execution")
+    
     optimizers = ["ga-standard", "ga-memetic"]
 
     run_jobs = []
