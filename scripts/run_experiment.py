@@ -330,7 +330,7 @@ def main() -> None:
                 optimizer_name=optimizer_name,
                 num_runs=args.runs,
                 # The paper did specify evaluations for GA differently
-                evaluations=args.evaluations if not optimizer_name.startswith("ga") else 300,
+                evaluations=args.evaluations,
                 base_seed=args.seed,
                 n_jobs=n_jobs,
             )

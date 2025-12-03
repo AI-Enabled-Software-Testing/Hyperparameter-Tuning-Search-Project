@@ -155,6 +155,8 @@ python scripts/analyze_experiment.py`
 * Best Fitness over Evaluations with mean and std.
 * Total Time Across Runs.
 * Final Fitness Values Across Runs.
+* Run this command with tensorboard to inspect GPU usages of specific runs: `tensorboard --logdir .cache/tensorboard/[specific folder]`. 
+   * Note: this would require an extra dependency, by installing with: `pip install tensorflow`.
 
 #### Analysis Specific to PSO
 The `scripts/analyze_experiments.py` script tries to print diagnostics of the particle swarm optimization per run with advice.
@@ -164,3 +166,8 @@ You can also run the following script to run and visualize experiments in a scri
 ```bash
 python scripts/analyze_ga.py
 ```
+The above-mentioned script is only running 1 experiment followed by an analysis (with graphs plotting) in a **sequential** manner. If you prefer running with parallel processing, please run the following pipeline (but please note that you will likely wait for all the experiments to complete before getting models and plots persisted on disk). You can run the pipeline alternatively with the following command:
+```bash
+python scripts/analyze_ga_parallel_run.py
+```
+They run with a single-job operation anyways (`--n-jobs = 1`).

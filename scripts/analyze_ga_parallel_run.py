@@ -2,6 +2,8 @@ import subprocess
 from pathlib import Path
 import os
 import sys
+import multiprocessing
+import psutil
 import gc
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -15,9 +17,7 @@ def run_experiment(args):
         "--model",
         model,
         "--optimizer",
-        optimizer,
-        "--evaluations",
-        str(20), # LIMIT BUDGET: much less than 50 for quick experiment (comparison)
+        optimizer
     ]
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd)
@@ -62,52 +62,56 @@ def analyze_experiment(model, optimizer, venv_python_path, venv_path):
         return False
     return True
 
+def get_available_memory_gb():
+    mem = psutil.virtual_memory()
+    avaialable_memory = mem.available or mem.total or 0
+    return avaialable_memory / (1024 ** 3) # in gb
+
+def allocate_job(memory_per_job_gb):
+    available_memory_gb = get_available_memory_gb()
+    max_jobs = round(available_memory_gb // memory_per_job_gb)
+    cpu_count = multiprocessing.cpu_count()
+    return min(max_jobs, cpu_count) if max_jobs and max_jobs > 0 else 1
+
 if __name__ == "__main__":
     venv_python_path, venv_path = venv_setup()
 
     models = ["dt", "knn", "cnn"]
     optimizers = ["ga-standard", "ga-memetic"]
 
-    failed_runs = []
-    failed_analyses = []
-    
-    # Run each experiment sequentially, analyze immediately after each successful run
+    run_jobs = []
+    # Experiment Runner
     for model in models:
         for optimizer in optimizers:
-            print(f"\n{'='*80}")
-            print(f"Processing: {model.upper()} with {optimizer.upper()}")
-            print(f"{'='*80}\n")
-            
-            # Run experiment
-            run_success = run_experiment((model, optimizer, venv_python_path, venv_path))
-            
-            if run_success:
-                # Analyze immediately after successful run
-                analyze_success = analyze_experiment(model, optimizer, venv_python_path, venv_path)
-                
-                if not analyze_success:
-                    print(f"WARNING: Analysis failed for {model}-{optimizer}")
-                    failed_analyses.append(f"{model}-{optimizer}")
-            else:
-                print(f"ERROR: Experiment run failed for {model}-{optimizer}")
-                failed_runs.append(f"{model}-{optimizer}")
-            
-            # Small cleanup after each iteration
-            gc.collect()
+            run_jobs.append((model, optimizer, venv_python_path, venv_path))
+        
+    with multiprocessing.Pool(processes=allocate_job(1)) as pool:
+        results = pool.map(run_experiment, run_jobs)
 
-    # Report any failures
-    if failed_runs or failed_analyses:
-        print(f"\n{'='*80}")
-        if failed_runs:
-            print("Failed experiment runs:")
-            for exp in failed_runs:
-                print(f"  - {exp}")
-        if failed_analyses:
-            print("Failed analyses:")
-            for exp in failed_analyses:
-                print(f"  - {exp}")
-        print(f"{'='*80}\n")
+    if not all(results):
+        print("Some experiments failed.")
         exit(-1)
+
+    # Clean up experiment run variables
+    del run_jobs, results, pool
+    gc.collect()
+
+    # Analyze Experiments
+    analyze_jobs = []
+    for model in models:
+        for optimizer in optimizers:
+            analyze_jobs.append((model, optimizer, venv_python_path, venv_path))
+        
+    with multiprocessing.Pool(processes=allocate_job(1)) as pool:
+        analyze_results = pool.map(analyze_experiment, analyze_jobs)
+
+    if not all(analyze_results):
+        print("Some analyses failed.")
+        exit(-1)
+
+    # Clean up analysis variables
+    del analyze_jobs, analyze_results, pool
+    gc.collect()
 
     # Check Paths
     EXPERIMENT_ROOT = REPO_ROOT / ".cache" / "experiment"
