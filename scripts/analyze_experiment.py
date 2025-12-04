@@ -16,6 +16,17 @@ FIGURES_ROOT = REPO_ROOT / ".cache" / "experiment_figures"
 # Exponential smoothing parameters
 SMOOTHING_SLIDER_BEST_FITNESS = 0.05
 SMOOTHING_SLIDER_CURRENT_FITNESS = 0.75
+SMOOTHING_SLIDER_INDIVIDUAL_METRICS = 0.3
+
+# Metric weights from our composite fitness
+METRIC_WEIGHTS = {
+    "f1_macro": 0.30,
+    "recall_macro": 0.20,
+    "roc_auc": 0.20,
+    "precision_macro": 0.15,
+    "accuracy": 0.10,
+    "f1_micro": 0.05,
+}
 
 
 def load_experiment_runs(experiment_name: str) -> List[Dict[str, Any]]:
@@ -57,6 +68,77 @@ def load_experiment_runs(experiment_name: str) -> List[Dict[str, Any]]:
     
     print(f"Loaded {len(runs)} runs from {experiment_name}")
     return runs
+
+
+def load_experiment_runs_with_history(experiment_name: str) -> List[Dict[str, Any]]:
+    """Load all run data including history.json for individual metric analysis."""
+    experiment_dir = EXPERIMENT_ROOT / experiment_name
+    
+    if not experiment_dir.exists():
+        raise FileNotFoundError(
+            f"Experiment directory not found: {experiment_dir}\n"
+            f"Available experiments: {[d.name for d in EXPERIMENT_ROOT.iterdir() if d.is_dir()]}"
+        )
+    
+    runs = []
+    for run_dir in sorted(experiment_dir.iterdir()):
+        if not run_dir.is_dir() or not run_dir.name.startswith("run_"):
+            continue
+        
+        history_path = run_dir / "history.json"
+        summary_path = run_dir / "summary.json"
+        
+        if not history_path.exists() or not summary_path.exists():
+            print(f"Warning: Skipping incomplete run {run_dir.name}")
+            continue
+        
+        with open(history_path) as f:
+            history = json.load(f)
+        
+        with open(summary_path) as f:
+            summary = json.load(f)
+        
+        runs.append({
+            "run_dir": run_dir.name,
+            "history": history,
+            "summary": summary,
+        })
+    
+    if not runs:
+        raise ValueError(f"No valid runs found in {experiment_dir}")
+    
+    print(f"Loaded {len(runs)} runs with history from {experiment_name}")
+    return runs
+
+
+def extract_metric_convergence(history: List[Dict[str, Any]], metric_name: str) -> Dict[str, list]:
+    """Extract best-so-far convergence trace for a specific metric from history.
+    
+    Args:
+        history: List of trial entries from history.json
+        metric_name: Name of the metric to extract (e.g., 'accuracy', 'f1_macro')
+    
+    Returns:
+        Dictionary with 'evaluations', 'best_metric', 'current_metric' lists
+    """
+    best_so_far = float("-inf")
+    convergence = []
+    
+    for entry in history:
+        metric_value = entry["metrics"][metric_name]
+        if metric_value > best_so_far:
+            best_so_far = metric_value
+        convergence.append({
+            "evaluation": entry["trial"],
+            "best_metric": best_so_far,
+            "current_metric": metric_value,
+        })
+    
+    return {
+        "evaluations": [c["evaluation"] for c in convergence],
+        "best_metric": [c["best_metric"] for c in convergence],
+        "current_metric": [c["current_metric"] for c in convergence],
+    }
 
 def plot_plateaus(runs: List[Dict[str, Any]], output_dir: Path, experiment_name: str, threshold: float | None):
     """Plot plateau detection for each run."""
@@ -458,6 +540,161 @@ def plot_final_fitness_boxplot(runs: List[Dict[str, Any]], output_dir: Path, exp
     print(f"Saved: {output_path}")
 
 
+def plot_individual_metrics_multi_panel(runs: List[Dict[str, Any]], output_dir: Path, experiment_name: str):
+    """Plot all 6 individual metrics in a multi-panel figure showing convergence with mean ± std.
+    
+    Args:
+        runs: List of runs loaded with load_experiment_runs_with_history()
+        output_dir: Directory to save the plot
+        experiment_name: Name of the experiment for the title
+    """
+    metrics_to_plot = list(METRIC_WEIGHTS.keys())
+    
+    fig, axes = plt.subplots(3, 2, figsize=(14, 12))
+    axes = axes.flatten()
+    
+    for idx, metric_name in enumerate(metrics_to_plot):
+        ax = axes[idx]
+        
+        # Collect convergence data for this metric across all runs
+        base_evaluations = None
+        all_metric_values = []
+        
+        for run in runs:
+            metric_convergence = extract_metric_convergence(run["history"], metric_name)
+            evaluations = np.array(metric_convergence["evaluations"])
+            best_metric = np.array(metric_convergence["best_metric"])
+            
+            if base_evaluations is None:
+                base_evaluations = evaluations
+            
+            # Interpolate if needed
+            if len(evaluations) != len(base_evaluations) or not np.allclose(evaluations, base_evaluations):
+                best_metric = np.interp(base_evaluations, evaluations, best_metric)
+            
+            all_metric_values.append(best_metric)
+        
+        # Calculate mean and std
+        all_metric_values = np.array(all_metric_values)
+        mean_metric = np.mean(all_metric_values, axis=0)
+        std_metric = np.std(all_metric_values, axis=0)
+        
+        # Apply exponential smoothing
+        mean_metric_smoothed = _exp_smooth(mean_metric, SMOOTHING_SLIDER_INDIVIDUAL_METRICS)
+        std_metric_smoothed = _exp_smooth(std_metric, SMOOTHING_SLIDER_INDIVIDUAL_METRICS)
+        
+        # Plot shaded region for std deviation
+        ax.fill_between(base_evaluations, mean_metric_smoothed - std_metric_smoothed,
+                        mean_metric_smoothed + std_metric_smoothed,
+                        alpha=0.3, label='±1 Std Dev')
+        
+        # Plot mean line
+        ax.plot(base_evaluations, mean_metric_smoothed, linewidth=2, label='Mean (smoothed)')
+        
+        # Set y-axis limits with padding
+        min_val = np.min(mean_metric_smoothed - std_metric_smoothed)
+        max_val = np.max(mean_metric_smoothed + std_metric_smoothed)
+        val_range = max_val - min_val
+        padding = val_range * 0.1 if val_range > 0 else 0.1
+        ax.set_ylim(bottom=max(0, min_val - padding), top=min(1, max_val + padding))
+        
+        # Add weight annotation
+        weight = METRIC_WEIGHTS[metric_name]
+        metric_label = metric_name.replace("_", " ").title()
+        ax.set_title(f"{metric_label} (weight: {weight:.2f})", fontsize=11, fontweight="bold")
+        ax.set_xlabel("Evaluation", fontsize=10)
+        ax.set_ylabel(metric_label, fontsize=10)
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc="best", fontsize=8)
+    
+    plt.suptitle(f"Individual Metrics Convergence - {experiment_name.upper()}", 
+                 fontsize=14, fontweight="bold", y=0.995)
+    plt.tight_layout()
+    
+    output_path = output_dir / "individual_metrics_multi_panel.png"
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {output_path}")
+
+
+def plot_metric_weight_impact(runs: List[Dict[str, Any]], output_dir: Path, experiment_name: str):
+    """Plot weighted contributions of each metric to composite fitness over evaluations.
+    
+    This visualization shows how much each metric contributes to the final composite fitness
+    score, helping understand if the optimization is balanced across all metrics or dominated
+    by specific ones.
+    
+    Args:
+        runs: List of runs loaded with load_experiment_runs_with_history()
+        output_dir: Directory to save the plot
+        experiment_name: Name of the experiment for the title
+    """
+    metrics_to_plot = list(METRIC_WEIGHTS.keys())
+    
+    # Collect convergence data for all metrics across all runs
+    base_evaluations = None
+    all_weighted_contributions = {metric: [] for metric in metrics_to_plot}
+    
+    for run in runs:
+        run_weighted = {metric: [] for metric in metrics_to_plot}
+        
+        for metric_name in metrics_to_plot:
+            metric_convergence = extract_metric_convergence(run["history"], metric_name)
+            evaluations = np.array(metric_convergence["evaluations"])
+            best_metric = np.array(metric_convergence["best_metric"])
+            
+            if base_evaluations is None:
+                base_evaluations = evaluations
+            
+            # Interpolate if needed
+            if len(evaluations) != len(base_evaluations) or not np.allclose(evaluations, base_evaluations):
+                best_metric = np.interp(base_evaluations, evaluations, best_metric)
+            
+            # Calculate weighted contribution
+            weighted = best_metric * METRIC_WEIGHTS[metric_name]
+            run_weighted[metric_name] = weighted
+        
+        # Store this run's weighted contributions
+        for metric_name in metrics_to_plot:
+            all_weighted_contributions[metric_name].append(run_weighted[metric_name])
+    
+    # Calculate mean weighted contributions across runs
+    mean_weighted = {}
+    for metric_name in metrics_to_plot:
+        mean_weighted[metric_name] = np.mean(np.array(all_weighted_contributions[metric_name]), axis=0)
+    
+    # Create stacked area plot
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
+    # Prepare data for stacking
+    bottom = np.zeros(len(base_evaluations))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(metrics_to_plot)))
+    
+    for idx, metric_name in enumerate(metrics_to_plot):
+        metric_label = metric_name.replace("_", " ").title()
+        weight = METRIC_WEIGHTS[metric_name]
+        values = mean_weighted[metric_name]
+        
+        ax.fill_between(base_evaluations, bottom, bottom + values,
+                       label=f"{metric_label} (w={weight:.2f})",
+                       alpha=0.8, color=colors[idx])
+        bottom += values
+    
+    ax.set_xlabel("Evaluation", fontsize=12)
+    ax.set_ylabel("Weighted Contribution to Composite Fitness", fontsize=12)
+    ax.set_title(f"Metric Weight Impact - {experiment_name.upper()}", fontsize=14, fontweight="bold")
+    ax.grid(True, alpha=0.3, axis='y')
+    ax.legend(loc="upper left", fontsize=9, bbox_to_anchor=(1.01, 1))
+    ax.set_ylim(bottom=0)
+    
+    plt.tight_layout()
+    
+    output_path = output_dir / "metric_weight_impact.png"
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {output_path}")
+
+
 def diagnose_pso_hyperparameters(runs: List[Dict[str, Any]], experiment_name: str):
     """Diagnose PSO hyperparameter issues from convergence patterns."""
     if "pso" not in experiment_name.lower():
@@ -575,6 +812,15 @@ def main() -> None:
     plot_convergence(runs, output_dir, args.experiment)
     # Plot plateau detection for each run
     plot_plateaus(runs, output_dir, args.experiment, threshold=None)
+    
+    # Generate individual metrics analysis plots (requires history.json)
+    print("\nGenerating individual metrics analysis...")
+    try:
+        runs_with_history = load_experiment_runs_with_history(args.experiment)
+        plot_individual_metrics_multi_panel(runs_with_history, output_dir, args.experiment)
+        plot_metric_weight_impact(runs_with_history, output_dir, args.experiment)
+    except Exception as e:
+        print(f"Warning: Could not generate individual metrics plots: {e}")
     # Plot comparison specifically for GA Standard vs Memetic
     if "ga" in args.experiment.lower():
         model = args.experiment.split("-")[0]
