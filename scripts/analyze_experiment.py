@@ -123,17 +123,29 @@ def plot_convergence(runs: List[Dict[str, Any]], output_dir: Path, experiment_na
 def plot_convergence_comparison(experiment_names: List[str], model: str, output_path: Path):
     """
     Plot convergence curves for multiple experiments (e.g., GA Standard vs Memetic) on the same plot.
+    Uses only the latest run from each experiment.
     """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
     for exp_name in experiment_names:
-        runs = load_experiment_runs(f"{model}-{exp_name}")
-        for run in runs:
-            evaluations = np.array(run["convergence"]["evaluations"])
-            best_fitness = np.array(run["convergence"]["best_fitness"])
-            plt.plot(evaluations, best_fitness, label=f"{exp_name} {run['run_dir']}")
-    plt.xlabel("Evaluations")
-    plt.ylabel("Best Fitness")
-    plt.title(f"Convergence: {model.upper()} - " + " vs ".join(experiment_names))
-    plt.legend()
+        runs = load_experiment_runs(exp_name)
+        
+        # Sort runs by directory name (which includes timestamp) and take the latest
+        runs_sorted = sorted(runs, key=lambda r: r["run_dir"], reverse=True)
+        latest_run = runs_sorted[0]
+        
+        evaluations = np.array(latest_run["convergence"]["evaluations"])
+        best_fitness = np.array(latest_run["convergence"]["best_fitness"])
+        
+        # Extract algorithm name for cleaner label
+        algo_name = exp_name.split("-", 1)[1] if "-" in exp_name else exp_name
+        ax.plot(evaluations, best_fitness, linewidth=2, label=algo_name.upper())
+    
+    ax.set_xlabel("Evaluations", fontsize=12)
+    ax.set_ylabel("Best Fitness", fontsize=12)
+    ax.set_title(f"Convergence Comparison: {model.upper()}", fontsize=14, fontweight="bold")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize=10)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -418,7 +430,7 @@ def main() -> None:
         "--experiment",
         type=str,
         required=True,
-        help="Experiment name (e.g., 'cnn-rs', 'dt-ga', 'knn-pso')",
+        help="Experiment name: 'cnn-rs', 'dt-ga', 'knn-pso')",
     )
     parser.add_argument(
         "--diagnose-pso",
@@ -450,9 +462,18 @@ def main() -> None:
     if "ga" in args.experiment.lower():
         model = args.experiment.split("-")[0]
         comparison_experiments = [f"{model}-ga-standard", f"{model}-ga-memetic"]
-        comparison_output_path = output_dir / "convergence_comparison.png"
-        if not os.path.exists(comparison_output_path):
+        if Path(output_dir.resolve().parent / model).exists() is False:
+            (output_dir.resolve().parent / model).mkdir(parents=True, exist_ok=True)
+        comparison_output_path = output_dir.resolve().parent / f"GA_Comparison_{model}" / "GA_convergence_comparison.png"
+        
+        # Only create comparison if both experiments exist
+        all_exist = all((EXPERIMENT_ROOT / exp).exists() for exp in comparison_experiments)
+        if all_exist and not os.path.exists(comparison_output_path):
             plot_convergence_comparison(comparison_experiments, model, comparison_output_path)
+        elif not all_exist:
+            print(f"\nSkipping comparison plot: Not all experiments exist yet.")
+            print(f"  Required: {comparison_experiments}")
+            print(f"  Available: {[d.name for d in EXPERIMENT_ROOT.iterdir() if d.is_dir()]}")
     
     # Run PSO diagnostics if requested
     if args.diagnose_pso:
