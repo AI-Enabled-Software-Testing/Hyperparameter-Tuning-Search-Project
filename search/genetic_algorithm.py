@@ -155,11 +155,20 @@ class GeneticAlgorithm(Optimizer):
             attempts = 0
             max_attempts = max_offspring * 10  # Prevent infinite loop
             while len(offspring) < max_offspring and attempts < max_attempts:
+                # Error Handling
                 if len(elites) == 0:
                     # Fallback to entire population if no elites
                     elites = all_params
                     if verbose:
                         print("No elites selected; reverting to entire population for parent selection.")
+                if len(offspring) > max_offspring:
+                    if verbose:
+                        print("Reached maximum number of offsprings allowed.")
+                    break
+                if len(offspring) > len(all_params):
+                    if verbose:
+                        print("Number of offsprings exceeded total population; stopping crossover.")
+                    break
                 parent1 = self._random.choice(elites)
                 parent2 = self._random.choice(elites)
                 # Ensure parents are not identical
