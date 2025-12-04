@@ -66,8 +66,8 @@ def analyze_experiment(model, optimizer, venv_python_path, venv_path):
 def get_available_memory_gb():
     mem = psutil.virtual_memory()
     # Use available memory (includes reclaimable cache/buffers)
-    # Apply 90% safety margin to leave headroom for OS
-    available_memory = mem.available * 0.9
+    # Apply 80% safety margin to leave headroom for OS
+    available_memory = mem.available * 0.8
     return available_memory / (1024 ** 3)  # in gb
 
 def allocate_job(memory_per_job_gb):
