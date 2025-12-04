@@ -151,6 +151,123 @@ def plot_convergence_comparison(experiment_names: List[str], model: str, output_
     plt.close()
     print(f"Saved: {output_path}")
 
+
+def plot_models_comparison_by_optimizer(optimizer: str, output_path: Path):
+    """
+    Plot average best fitness across all models (dt, knn, cnn) for a specific optimizer.
+    Shows mean convergence curve for each model without std deviation bands.
+    """
+    models = ["dt", "knn", "cnn"]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    for model in models:
+        exp_name = f"{model}-{optimizer}"
+        exp_dir = EXPERIMENT_ROOT / exp_name
+        
+        if not exp_dir.exists():
+            print(f"Skipping {exp_name}: directory not found")
+            continue
+        
+        try:
+            runs = load_experiment_runs(exp_name)
+            
+            # Collect all runs' best fitness
+            base_evaluations = np.array(runs[0]["convergence"]["evaluations"])
+            all_fitnesses = []
+            
+            for run in runs:
+                convergence = run["convergence"]
+                evaluations = np.array(convergence["evaluations"])
+                best_fitness = np.array(convergence["best_fitness"])
+                
+                # Interpolate if needed
+                if len(evaluations) != len(base_evaluations) or not np.allclose(evaluations, base_evaluations):
+                    best_fitness = np.interp(base_evaluations, evaluations, best_fitness)
+                
+                all_fitnesses.append(best_fitness)
+            
+            # Calculate mean fitness across all runs
+            mean_fitness = np.mean(np.array(all_fitnesses), axis=0)
+            
+            # Plot mean line for this model
+            ax.plot(base_evaluations, mean_fitness, linewidth=2, label=model.upper())
+            
+        except Exception as e:
+            print(f"Error processing {exp_name}: {e}")
+            continue
+    
+    ax.set_xlabel("Evaluations", fontsize=12)
+    ax.set_ylabel("Average Best Fitness", fontsize=12)
+    ax.set_title(f"Model Comparison - {optimizer.upper()}", fontsize=14, fontweight="bold")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize=10)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {output_path}")
+
+
+def plot_all_experiments_comparison(model: str, output_path: Path):
+    """
+    Plot average best fitness for all available model-optimizer combinations for a specific model.
+    Discovers all existing experiments dynamically and plots them.
+    """
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
+    # Find all experiments for this model
+    experiments_found = []
+    for exp_dir in sorted(EXPERIMENT_ROOT.iterdir()):
+        if exp_dir.is_dir() and exp_dir.name.startswith(f"{model}-"):
+            experiments_found.append(exp_dir.name)
+    
+    if not experiments_found:
+        print(f"No experiments found for model {model}")
+        return
+    
+    print(f"Found {len(experiments_found)} experiments for {model}: {experiments_found}")
+    
+    for exp_name in experiments_found:
+        try:
+            runs = load_experiment_runs(exp_name)
+            
+            # Collect all runs' best fitness
+            base_evaluations = np.array(runs[0]["convergence"]["evaluations"])
+            all_fitnesses = []
+            
+            for run in runs:
+                convergence = run["convergence"]
+                evaluations = np.array(convergence["evaluations"])
+                best_fitness = np.array(convergence["best_fitness"])
+                
+                # Interpolate if needed
+                if len(evaluations) != len(base_evaluations) or not np.allclose(evaluations, base_evaluations):
+                    best_fitness = np.interp(base_evaluations, evaluations, best_fitness)
+                
+                all_fitnesses.append(best_fitness)
+            
+            # Calculate mean fitness across all runs
+            mean_fitness = np.mean(np.array(all_fitnesses), axis=0)
+            
+            # Extract optimizer name for label
+            optimizer_name = exp_name.split("-", 1)[1] if "-" in exp_name else exp_name
+            
+            # Plot mean line for this experiment
+            ax.plot(base_evaluations, mean_fitness, linewidth=2, label=optimizer_name.upper())
+            
+        except Exception as e:
+            print(f"Error processing {exp_name}: {e}")
+            continue
+    
+    ax.set_xlabel("Evaluations", fontsize=12)
+    ax.set_ylabel("Average Best Fitness", fontsize=12)
+    ax.set_title(f"All Experiments Comparison - {model.upper()}", fontsize=14, fontweight="bold")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize=10)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {output_path}")
+
 def _exp_smooth(values: np.ndarray, smoothing_slider: float = 0.9) -> np.ndarray:
     """Apply exponential smoothing to a sequence of values."""
     smoothed = np.empty_like(values, dtype=np.float32)
@@ -462,9 +579,9 @@ def main() -> None:
     if "ga" in args.experiment.lower():
         model = args.experiment.split("-")[0]
         comparison_experiments = [f"{model}-ga-standard", f"{model}-ga-memetic"]
-        if Path(output_dir.resolve().parent / model).exists() is False:
-            (output_dir.resolve().parent / model).mkdir(parents=True, exist_ok=True)
-        comparison_output_path = output_dir.resolve().parent / f"GA_Comparison_{model}" / "GA_convergence_comparison.png"
+        comparison_dir = output_dir.resolve().parent / f"GA_Comparison_{model}"
+        comparison_dir.mkdir(parents=True, exist_ok=True)
+        comparison_output_path = comparison_dir / "GA_convergence_comparison.png"
         
         # Only create comparison if both experiments exist
         all_exist = all((EXPERIMENT_ROOT / exp).exists() for exp in comparison_experiments)
@@ -474,6 +591,37 @@ def main() -> None:
             print(f"\nSkipping comparison plot: Not all experiments exist yet.")
             print(f"  Required: {comparison_experiments}")
             print(f"  Available: {[d.name for d in EXPERIMENT_ROOT.iterdir() if d.is_dir()]}")
+    
+    # Generate cross-model and cross-optimizer comparison plots
+    print("\nGenerating cross-comparison plots...")
+    
+    # Extract model and optimizer from experiment name
+    parts = args.experiment.split("-")
+    if len(parts) >= 2:
+        current_model = parts[0]
+        current_optimizer = "-".join(parts[1:])
+        
+        # Plot models comparison for this optimizer
+        models_comparison_dir = FIGURES_ROOT / f"Models_Comparison_{current_optimizer}"
+        models_comparison_dir.mkdir(parents=True, exist_ok=True)
+        models_comparison_path = models_comparison_dir / f"models_comparison_{current_optimizer}.png"
+        
+        if not os.path.exists(models_comparison_path):
+            try:
+                plot_models_comparison_by_optimizer(current_optimizer, models_comparison_path)
+            except Exception as e:
+                print(f"Could not generate models comparison: {e}")
+        
+        # Plot optimizers comparison for this model
+        optimizers_comparison_dir = FIGURES_ROOT / f"Optimizers_Comparison_{current_model}"
+        optimizers_comparison_dir.mkdir(parents=True, exist_ok=True)
+        all_experiments_comparison_path = optimizers_comparison_dir / f"all_experiments_{current_model}.png"
+        
+        if not os.path.exists(all_experiments_comparison_path):
+            try:
+                plot_all_experiments_comparison(current_model, all_experiments_comparison_path)
+            except Exception as e:
+                print(f"Could not generate all experiments comparison: {e}")
     
     # Run PSO diagnostics if requested
     if args.diagnose_pso:
