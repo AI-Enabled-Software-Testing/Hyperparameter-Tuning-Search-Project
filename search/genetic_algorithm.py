@@ -96,20 +96,24 @@ class GeneticAlgorithm(Optimizer):
                     start = time.perf_counter()
                     metrics = self.evaluate_fn(params)
                     duration = time.perf_counter() - start
-                    results.append((geneID, params, metrics, duration))
+                    # trial, params, metrics, duration
+                    print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
+                    results.append((evals_done, params, metrics, duration))
             else: # Parallel Processing
-                def evaluate_population(geneID, params):
+                def evaluate_population(evals_done, params):
                     """Evaluate a single population member."""
                     start = time.perf_counter()
                     metrics = self.evaluate_fn(params)
                     duration = time.perf_counter() - start
-                    return (geneID, params, metrics, duration)
+                    # trial, params, metrics, duration
+                    print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
+                    return (evals_done, params, metrics, duration)
                 
                 parallel_verbose = 10 if verbose else 0
                 # Record results (mainly the individual fitness values) into an iterable structure
                 results += list(Parallel(n_jobs=self.n_jobs, verbose=parallel_verbose)(
-                    delayed(evaluate_population)(geneID, params)
-                    for geneID, params in enumerate(all_params, start=1) # each gene and param value in a parameters set
+                    delayed(evaluate_population)(evals_done, params)
+                    for _, params in enumerate(all_params, start=1) # each gene and param value in a parameters set
                 ))
             
             # After Evaluation, Update the number of evaluations done
