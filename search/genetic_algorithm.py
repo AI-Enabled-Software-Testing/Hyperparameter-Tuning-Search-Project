@@ -54,6 +54,8 @@ class GeneticAlgorithm(Optimizer):
         self.generations = generations
         self.radius = radius
         self.num_fittest = num_fittest
+        # Memoization cache: maps trial number to (params, metrics, duration)
+        self._eval_cache: Dict[int, tuple[Dict[str, Any], Dict[str, float], float]] = {}
 
     def run(self, trials: int, verbose: bool = False, writer: Optional[SummaryWriter] = None):
         """Run the Genetic Algorithm optimization process."""
@@ -92,19 +94,39 @@ class GeneticAlgorithm(Optimizer):
                     # params is a Dict of parameter name => value (i.e., one valid combination)
                     if verbose:
                         print(f"Population {geneID}/{self.populationSize}: {params}")
-                    # Evaluate the fitness of each member in the initial population
-                    start = time.perf_counter()
-                    metrics = self.evaluate_fn(params)
-                    duration = time.perf_counter() - start
+                    
+                    # Check memoization cache to avoid re-evaluation based on trial number
+                    if evals_done in self._eval_cache:
+                        # Use cached result
+                        cached_params, metrics, duration = self._eval_cache[evals_done]
+                        if verbose:
+                            print(f"  -> Using cached evaluation result for trial {evals_done}")
+                    else:
+                        # Evaluate the fitness of each member in the initial population
+                        start = time.perf_counter()
+                        metrics = self.evaluate_fn(params)
+                        duration = time.perf_counter() - start
+                        # Store in cache by trial number
+                        self._eval_cache[evals_done] = (params, metrics, duration)
+                    
                     # trial, params, metrics, duration
                     print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
                     results.append((evals_done, params, metrics, duration))
             else: # Parallel Processing
-                def evaluate_population(evals_done, params):
+                def evaluate_population(evals_done, params, eval_cache):
                     """Evaluate a single population member."""
-                    start = time.perf_counter()
-                    metrics = self.evaluate_fn(params)
-                    duration = time.perf_counter() - start
+                    # Check memoization cache to avoid re-evaluation based on trial number
+                    if evals_done in eval_cache:
+                        # Use cached result
+                        cached_params, metrics, duration = eval_cache[evals_done]
+                        print(f"  -> Using cached evaluation result for trial {evals_done}")
+                    else:
+                        start = time.perf_counter()
+                        metrics = self.evaluate_fn(params)
+                        duration = time.perf_counter() - start
+                        # Store in cache by trial number (note: updates to dict are thread-safe for unique keys)
+                        eval_cache[evals_done] = (params, metrics, duration)
+                    
                     # trial, params, metrics, duration
                     print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
                     return (evals_done, params, metrics, duration)
@@ -112,7 +134,7 @@ class GeneticAlgorithm(Optimizer):
                 parallel_verbose = 10 if verbose else 0
                 # Record results (mainly the individual fitness values) into an iterable structure
                 results += list(Parallel(n_jobs=self.n_jobs, verbose=parallel_verbose)(
-                    delayed(evaluate_population)(evals_done, params)
+                    delayed(evaluate_population)(evals_done, params, self._eval_cache)
                     for _, params in enumerate(all_params, start=1) # each gene and param value in a parameters set
                 ))
             
@@ -223,15 +245,52 @@ class GeneticAlgorithm(Optimizer):
                     f"Metric '{self.metric_key}' missing from evaluation result: {metrics}"
                 )
             score = metrics[self.metric_key]
-            history.append(
-                {
-                    "trial": trial,
-                    "params": params,
-                    "metrics": metrics,
-                    "score": score,
-                    "duration_sec": duration,
-                }
-            )
+            # Check duplicated trial
+            if any(entry["trial"] == trial for entry in history):
+                # Take the Dict with best metric scores
+                if verbose:
+                    print(f"  -> Duplicate trial {trial} detected, checking for better score...")
+                existing_entry = next(
+                    entry for entry in history if entry["trial"] == trial
+                )
+                if score > existing_entry["score"]:
+                    if verbose:
+                        print(f"     -> Updating trial {trial} with better score: {score:.4f} (was {existing_entry['score']:.4f})")
+                    existing_entry.update(
+                        {
+                            "params": params,
+                            "metrics": metrics,
+                            "score": score,
+                            "duration_sec": duration,
+                        }
+                    )
+                elif score == existing_entry["score"]:
+                    # tie
+                    if verbose:
+                        print(f"     -> Tie detected for trial {trial} with score: {score:.4f}, applying tiebreaker.")
+                    # Keep the search with less duration
+                    if duration < existing_entry["duration_sec"]:
+                        if verbose:
+                            print(f"        -> Tiebreaker won! Updating trial {trial} with shorter duration: {duration:.4f} sec (was {existing_entry['duration_sec']:.4f} sec)")
+                        existing_entry.update(
+                            {
+                                "params": params,
+                                "metrics": metrics,
+                                "score": score,
+                                "duration_sec": duration,
+                            }
+                        )
+            else:
+                # Normal: no duplicates
+                history.append(
+                    {
+                        "trial": trial,
+                        "params": params,
+                        "metrics": metrics,
+                        "score": score,
+                        "duration_sec": duration,
+                    }
+                )
             if writer is not None:
                 writer.add_scalar("search/duration_sec", duration, trial)
                 writer.add_scalar("search/score", score, trial)
