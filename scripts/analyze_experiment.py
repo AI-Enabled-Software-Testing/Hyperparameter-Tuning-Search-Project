@@ -29,8 +29,16 @@ METRIC_WEIGHTS = {
 }
 
 
-def load_experiment_runs(experiment_name: str) -> List[Dict[str, Any]]:
-    """Load all run data for an experiment."""
+def load_experiment_runs(experiment_name: str, include_history: bool = False) -> List[Dict[str, Any]]:
+    """Load all run data for an experiment.
+    
+    Args:
+        experiment_name: Name of the experiment to load
+        include_history: If True, load history.json instead of convergence.json
+    
+    Returns:
+        List of run dictionaries containing run_dir, summary, and either convergence or history data
+    """
     experiment_dir = EXPERIMENT_ROOT / experiment_name
     
     if not experiment_dir.exists():
@@ -44,70 +52,36 @@ def load_experiment_runs(experiment_name: str) -> List[Dict[str, Any]]:
         if not run_dir.is_dir() or not run_dir.name.startswith("run_"):
             continue
         
-        convergence_path = run_dir / "convergence.json"
         summary_path = run_dir / "summary.json"
         
-        if not convergence_path.exists() or not summary_path.exists():
+        if include_history:
+            data_path = run_dir / "history.json"
+            data_key = "history"
+        else:
+            data_path = run_dir / "convergence.json"
+            data_key = "convergence"
+        
+        if not data_path.exists() or not summary_path.exists():
             print(f"Warning: Skipping incomplete run {run_dir.name}")
             continue
         
-        with open(convergence_path) as f:
-            convergence = json.load(f)
+        with open(data_path) as f:
+            data = json.load(f)
         
         with open(summary_path) as f:
             summary = json.load(f)
         
         runs.append({
             "run_dir": run_dir.name,
-            "convergence": convergence,
+            data_key: data,
             "summary": summary,
         })
     
     if not runs:
         raise ValueError(f"No valid runs found in {experiment_dir}")
     
-    print(f"Loaded {len(runs)} runs from {experiment_name}")
-    return runs
-
-
-def load_experiment_runs_with_history(experiment_name: str) -> List[Dict[str, Any]]:
-    """Load all run data including history.json for individual metric analysis."""
-    experiment_dir = EXPERIMENT_ROOT / experiment_name
-    
-    if not experiment_dir.exists():
-        raise FileNotFoundError(
-            f"Experiment directory not found: {experiment_dir}\n"
-            f"Available experiments: {[d.name for d in EXPERIMENT_ROOT.iterdir() if d.is_dir()]}"
-        )
-    
-    runs = []
-    for run_dir in sorted(experiment_dir.iterdir()):
-        if not run_dir.is_dir() or not run_dir.name.startswith("run_"):
-            continue
-        
-        history_path = run_dir / "history.json"
-        summary_path = run_dir / "summary.json"
-        
-        if not history_path.exists() or not summary_path.exists():
-            print(f"Warning: Skipping incomplete run {run_dir.name}")
-            continue
-        
-        with open(history_path) as f:
-            history = json.load(f)
-        
-        with open(summary_path) as f:
-            summary = json.load(f)
-        
-        runs.append({
-            "run_dir": run_dir.name,
-            "history": history,
-            "summary": summary,
-        })
-    
-    if not runs:
-        raise ValueError(f"No valid runs found in {experiment_dir}")
-    
-    print(f"Loaded {len(runs)} runs with history from {experiment_name}")
+    suffix = " with history" if include_history else ""
+    print(f"Loaded {len(runs)} runs{suffix} from {experiment_name}")
     return runs
 
 
@@ -544,7 +518,7 @@ def plot_individual_metrics_multi_panel(runs: List[Dict[str, Any]], output_dir: 
     """Plot all 6 individual metrics in a multi-panel figure showing convergence with mean ± std.
     
     Args:
-        runs: List of runs loaded with load_experiment_runs_with_history()
+        runs: List of runs loaded with load_experiment_runs(include_history=True)
         output_dir: Directory to save the plot
         experiment_name: Name of the experiment for the title
     """
@@ -625,7 +599,7 @@ def plot_metric_weight_impact(runs: List[Dict[str, Any]], output_dir: Path, expe
     by specific ones.
     
     Args:
-        runs: List of runs loaded with load_experiment_runs_with_history()
+        runs: List of runs loaded with load_experiment_runs(include_history=True)
         output_dir: Directory to save the plot
         experiment_name: Name of the experiment for the title
     """
@@ -816,7 +790,7 @@ def main() -> None:
     # Generate individual metrics analysis plots (requires history.json)
     print("\nGenerating individual metrics analysis...")
     try:
-        runs_with_history = load_experiment_runs_with_history(args.experiment)
+        runs_with_history = load_experiment_runs(args.experiment, include_history=True)
         plot_individual_metrics_multi_panel(runs_with_history, output_dir, args.experiment)
         plot_metric_weight_impact(runs_with_history, output_dir, args.experiment)
     except Exception as e:

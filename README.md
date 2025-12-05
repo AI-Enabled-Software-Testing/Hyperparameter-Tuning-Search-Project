@@ -104,7 +104,7 @@ The script includes:
 - CUDA support with automatic device detection
 
 ### Model Training with a Customized Tuning Process
-* A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\model_training_flow.ipynb`, including: a shorter demo with less data, data and model loading processes, an exhaustive tuning (without metaheuristics) on only the validation set, training and evaluating on the best found set of hyperparameters for each model. Another notebook named `rs_training.ipynb` in the same directory focuses primarily on using a random solver (our choice of baseline) to search for the best set of hyperparameters based on a more updated version of classes and functions interfaces from our models. 
+* A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\rs_training.ipynb`. It focuses primarily on using a random solver (our choice of baseline) to search for the best set of hyperparameters based on a more updated version of classes and functions interfaces from our models. 
 
 ### Run a Search quickly
 * You can run a quick hyperparameter search based on this script: 
@@ -121,7 +121,7 @@ python hparam_search.py
 * It is intended for quick experiments, visualizations, and debugging with a single optimizer.
 
 ### Run a Full Experiment
-* You can run a quick hyperparameter search based on this script: 
+* You can run a full hyperparameter search based on this script: 
 ```bash
 python scripts/run_experiment.py
 ```
