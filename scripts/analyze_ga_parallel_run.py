@@ -11,9 +11,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
 
 def run_experiment(args):
-    model, optimizer, venv_python_path, venv_path = args
+    model, optimizer = args
     cmd = [
-        str(venv_python_path) if venv_path else "python",
+        "uv run", # Using 'uv run' to ensure virtual environment is activated
         "./scripts/run_experiment.py",
         "--model",
         model,
@@ -27,31 +27,10 @@ def run_experiment(args):
         return False
     return True
 
-def venv_setup():
-    # Check and Use a Venv if Available
-    # Find a venv directory containing 'venv' in its name
-    venv_dirs = [d for d in REPO_ROOT.iterdir() if d.is_dir() and "venv" in d.name.lower()]
-    if venv_dirs:
-        venv_path = venv_dirs[0] / "Scripts" / "activate"
-        print(f"Found venv: {venv_dirs[0]}")
-    else:
-        venv_path = None
-        print("No venv directory found.")
-    if venv_path:
-        activate_command = str(venv_path)
-        if os.name == 'nt':  # Windows
-            command = f"{activate_command} && python"
-        else:  # Unix or MacOS
-            command = f"source {activate_command} && python"
-        print(f"Using venv activation command: {command}")
-
-    venv_python_path = venv_dirs[0] / "Scripts" / "python.exe" if os.name == 'nt' else venv_dirs[0] / "bin" / "python"
-    return venv_python_path, venv_path
-
-def analyze_experiment(model, optimizer, venv_python_path, venv_path):
+def analyze_experiment(model, optimizer):
     experiment_name = f"{model}_{optimizer}_experiment"
     cmd = [
-        str(venv_python_path) if venv_path else "python",
+        "uv run", # Using 'uv run' to ensure virtual environment is activated
         "./scripts/analyze_experiment.py",
         "--experiment-name",
         experiment_name
@@ -78,8 +57,6 @@ def allocate_job(memory_per_job_gb):
     return max(1, min(max_jobs, cpu_count))
 
 if __name__ == "__main__":
-    venv_python_path, venv_path = venv_setup()
-
     # Dynamically adjust models based on available hardware
     models = ["dt", "knn"]
     if torch.cuda.is_available():
@@ -94,7 +71,7 @@ if __name__ == "__main__":
     # Experiment Runner
     for model in models:
         for optimizer in optimizers:
-            run_jobs.append((model, optimizer, venv_python_path, venv_path))
+            run_jobs.append((model, optimizer))
         
     with multiprocessing.Pool(processes=allocate_job(1)) as pool:
         results = pool.map(run_experiment, run_jobs)
@@ -111,7 +88,7 @@ if __name__ == "__main__":
     analyze_jobs = []
     for model in models:
         for optimizer in optimizers:
-            analyze_jobs.append((model, optimizer, venv_python_path, venv_path))
+            analyze_jobs.append((model, optimizer))
         
     with multiprocessing.Pool(processes=allocate_job(1)) as pool:
         analyze_results = pool.map(analyze_experiment, analyze_jobs)
@@ -135,5 +112,5 @@ if __name__ == "__main__":
         print("Experiment or Figures directories do not exist. Consider re-running the scripts.")
         exit(-1)
     # Final cleanup
-    del venv_python_path, venv_path, models, optimizers, EXPERIMENT_ROOT, FIGURES_ROOT
+    del models, optimizers, EXPERIMENT_ROOT, FIGURES_ROOT
     gc.collect()
