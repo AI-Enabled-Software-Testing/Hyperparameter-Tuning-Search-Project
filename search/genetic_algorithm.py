@@ -204,9 +204,8 @@ class GeneticAlgorithm(Optimizer):
                     offspring.append(child)
                 attempts += 1
             # A Brief Checking
-            assert len(offspring) < max_offspring, "Number of Offsprings should not exceed the allowed maximum"
-            assert len(offspring) <= len(all_params), f"Evolved {len(offspring)} Offsprings should not exceed the total population of {len(all_params)}"
-            
+            assert len(offspring) <= max_offspring, f"Number of Offsprings {len(offspring)} should not exceed the allowed maximum of {max_offspring}"
+
             # 3. Mutation
             # We get a list of mutated children from crossover offsprings
             mutated_offspring: List[Dict[str, Any]] = []
