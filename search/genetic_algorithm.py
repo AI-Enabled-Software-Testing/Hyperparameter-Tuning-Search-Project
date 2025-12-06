@@ -204,7 +204,7 @@ class GeneticAlgorithm(Optimizer):
                     offspring.append(child)
                 attempts += 1
             # A Brief Checking
-            assert len(offspring) <= max_offspring, "Number of Offsprings should not exceed the allowed maximum"
+            assert len(offspring) < max_offspring, "Number of Offsprings should not exceed the allowed maximum"
             assert len(offspring) <= len(all_params), f"Evolved {len(offspring)} Offsprings should not exceed the total population of {len(all_params)}"
             
             # 3. Mutation
