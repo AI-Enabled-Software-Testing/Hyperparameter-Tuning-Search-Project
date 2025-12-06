@@ -1,6 +1,4 @@
-import subprocess
 from pathlib import Path
-import os
 import sys
 import gc
 import torch
@@ -69,7 +67,7 @@ if __name__ == "__main__":
             for optimizer in optimizers:
                 print(f"\n{'='*80}")
                 print(f"Processing: {model.upper()} with {optimizer.upper()}")
-                print(f"{'='*80}\n")\
+                print(f"{'='*80}\n")
                 
                 # Check if experiment already exists
                 if experiment_exists(model, optimizer):
@@ -78,7 +76,7 @@ if __name__ == "__main__":
                     continue
                 
                 # Run experiment
-                run_success = ga_comp_run_experiment((model, optimizer))
+                run_success = ga_comp_run_experiment(model, optimizer)
                 
                 if run_success:
                     # Analyze immediately after successful run
