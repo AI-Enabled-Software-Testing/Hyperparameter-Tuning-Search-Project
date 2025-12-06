@@ -147,6 +147,7 @@ class GeneticAlgorithm(Optimizer):
             # Convert generator to list if needed
             results = list(results)  # Now safe to index
             fitness_scores = [res[2][self.metric_key] for res in results]
+            elites = all_params.copy()
 
             # Optional: Memetic to escape Local Search
             if self.radius is not None:
@@ -165,7 +166,7 @@ class GeneticAlgorithm(Optimizer):
 
             # 1. Selection
             elites: List[Dict[str, Any]] = self._selection(
-                elites if 'elites' in locals() else all_params, # Initial Population
+                elites, # Initial Population
                 fitness_scores, # Get the Fitness scores from the 3rd element
                 radius=None, # Placeholder
                 # Use the current length of all_params because it might be shortlisted if MA
