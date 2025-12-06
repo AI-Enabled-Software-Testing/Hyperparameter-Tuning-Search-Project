@@ -108,13 +108,22 @@ def get_optimizer(
             f"Available: {list(optimizer_map.keys())}"
         )
 
-    if optimizer_name.lower() in {"rs", "pso"} \
-        or optimizer_name.lower().startswith("ga"):
+    if optimizer_name.lower() in {"rs", "pso"}:
         return optimizer_class(
             param_space=param_space,
             evaluate_fn=evaluate_fn,
             metric_key="composite_fitness",
             seed=seed,
+            n_jobs=n_jobs,
+        )
+    elif optimizer_name.lower().startswith("ga"):
+        is_memetic: bool = optimizer_name.lower() == "ga-memetic"
+        return optimizer_class(
+            param_space=param_space,
+            evaluate_fn=evaluate_fn,
+            metric_key="composite_fitness",
+            seed=seed,
+            radius=0.15 if is_memetic else None,
             n_jobs=n_jobs,
         )
     else:
@@ -127,6 +136,7 @@ def get_optimizer(
 
 
 def extract_convergence_trace(history: list) -> Dict[str, list]:
+
     """Extract convergence trace (best-so-far fitness at each evaluation)."""
     best_so_far = float("-inf")
     convergence = []
@@ -322,23 +332,12 @@ def main() -> None:
     # Handle -1 for all CPUs
     n_jobs = args.n_jobs if args.n_jobs > 0 else None
 
-    if args.optimizer is None:
-        # Assume running all optimizers
-        for optimizer_name in ["rs", "ga-standard", "ga-memetic", "pso"]:
-            run_experiment(
-                model_key=args.model,
-                optimizer_name=optimizer_name,
-                num_runs=args.runs,
-                # The paper did specify evaluations for GA differently
-                evaluations=args.evaluations,
-                base_seed=args.seed,
-                n_jobs=n_jobs,
-            )
-    else:
-        # Run a Specific Experiment based on optimizer's name
+    optimizers = ["rs", "ga-standard", "ga-memetic", "pso"] if args.optimizer is None else [args.optimizer]
+
+    for optimizer_name in optimizers:
         run_experiment(
             model_key=args.model,
-            optimizer_name=args.optimizer,
+            optimizer_name=optimizer_name,
             num_runs=args.runs,
             evaluations=args.evaluations,
             base_seed=args.seed,
@@ -348,4 +347,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     exit(main())
-
