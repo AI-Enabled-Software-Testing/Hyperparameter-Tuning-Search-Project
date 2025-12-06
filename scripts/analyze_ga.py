@@ -8,37 +8,36 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
 
-def run_experiment(args):
-    model, optimizer = args
-    cmd = [
-        "uv", "run", # Using 'uv run' to ensure virtual environment is activated
-        "./scripts/run_experiment.py",
-        "--model",
-        model,
-        "--optimizer",
-        optimizer,
-        "--evaluations",
-        str(20), # LIMIT BUDGET: much less than 50 for quick experiment (comparison)
-    ]
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        print(f"Command failed: {' '.join(cmd)}")
+# Import codefiles
+from run_experiment import run_experiment, EVALUATIONS_PER_RUN
+from analyze_experiment import main
+
+def ga_comp_run_experiment(model, optimizer):
+    try:
+        if optimizer.startswith("ga"): # Only try GA optimizers
+            run_experiment(
+                model_key=model,
+                optimizer_name=optimizer,
+                num_runs=1,
+                n_jobs=1,
+                base_seed=42,
+                evaluations=EVALUATIONS_PER_RUN
+            )
+    except Exception as e:
+        print(f"Error running experiment for {model} with {optimizer}: {e}")
         return False
     return True
 
-def analyze_experiment(model, optimizer):
+def ga_comp_analyze_experiment(model, optimizer):
     experiment_name = f"{model}_{optimizer}_experiment"
-    cmd = [
-        "uv", "run", # Using 'uv run' to ensure virtual environment is activated
-        "./scripts/analyze_experiment.py",
-        "--experiment-name",
-        experiment_name
-    ]
-    print(f"Analyzing by script: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        print(f"Command failed: {' '.join(cmd)}")
+    try:
+        if optimizer.startswith("ga"): # Only try GA optimizers
+            main(
+                experiment=experiment_name,
+                diagnose_pso=False
+            )
+    except Exception as e:
+        print(f"Error analyzing experiment for {model} with {optimizer}: {e}")
         return False
     return True
 
@@ -79,11 +78,11 @@ if __name__ == "__main__":
                     continue
                 
                 # Run experiment
-                run_success = run_experiment((model, optimizer))
+                run_success = ga_comp_run_experiment((model, optimizer))
                 
                 if run_success:
                     # Analyze immediately after successful run
-                    analyze_success = analyze_experiment(model, optimizer)
+                    analyze_success = ga_comp_analyze_experiment(model, optimizer)
                     if not analyze_success:
                         print(f"WARNING: Analysis failed for {model}-{optimizer}")
                         failed_analyses.append(f"{model}-{optimizer}")

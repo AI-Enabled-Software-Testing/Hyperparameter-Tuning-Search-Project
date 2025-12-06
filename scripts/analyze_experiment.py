@@ -750,21 +750,23 @@ def diagnose_pso_hyperparameters(runs: List[Dict[str, Any]], experiment_name: st
     print("\n" + "=" * 80)
 
 
-def main() -> None:
+def main(experiment: str = None, diagnose_pso: bool | str = None) -> None:
     parser = argparse.ArgumentParser(
         description="Analyze experiment results and generate visualization figures."
     )
-    parser.add_argument(
-        "--experiment",
-        type=str,
-        required=True,
-        help="Experiment name: 'cnn-rs', 'dt-ga', 'knn-pso')",
-    )
-    parser.add_argument(
-        "--diagnose-pso",
-        action="store_true",
-        help="Run PSO hyperparameter diagnostics",
-    )
+    if experiment is None:
+        parser.add_argument(
+            "--experiment",
+            type=str,
+            required=True,
+            help="Experiment name: 'cnn-rs', 'dt-ga', 'knn-pso')",
+        )
+    if diagnose_pso is None:
+        parser.add_argument(
+            "--diagnose-pso",
+            action="store_true",
+            help="Run PSO hyperparameter diagnostics",
+        )
     
     args = parser.parse_args()
     
