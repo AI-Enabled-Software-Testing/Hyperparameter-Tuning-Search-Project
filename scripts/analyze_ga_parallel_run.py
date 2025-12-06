@@ -13,7 +13,7 @@ sys.path.append(str(REPO_ROOT))
 def run_experiment(args):
     model, optimizer = args
     cmd = [
-        "uv run", # Using 'uv run' to ensure virtual environment is activated
+        "uv", "run", # Using 'uv run' to ensure virtual environment is activated
         "./scripts/run_experiment.py",
         "--model",
         model,
@@ -30,7 +30,7 @@ def run_experiment(args):
 def analyze_experiment(model, optimizer):
     experiment_name = f"{model}_{optimizer}_experiment"
     cmd = [
-        "uv run", # Using 'uv run' to ensure virtual environment is activated
+        "uv", "run", # Using 'uv run' to ensure virtual environment is activated
         "./scripts/analyze_experiment.py",
         "--experiment-name",
         experiment_name
