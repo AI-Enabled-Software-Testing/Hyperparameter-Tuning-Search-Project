@@ -13,7 +13,6 @@ sys.path.append(str(REPO_ROOT))
 # Import codefiles
 from run_experiment import run_experiment, EVALUATIONS_PER_RUN
 from analyze_experiment import main
-import argparse
 
 def analyze_experiment(experiment_name) -> None:
     main(experiment=experiment_name, diagnose_pso=False)
@@ -83,7 +82,7 @@ if __name__ == "__main__":
             run_jobs.append((model, optimizer))
         
     with multiprocessing.Pool(processes=allocate_job(1)) as pool:
-        results = pool.map(run_experiment, run_jobs)
+        results = pool.starmap(ga_comp_run_experiment, run_jobs)
 
     if not all(results):
         print("Some experiments failed.")
@@ -100,7 +99,7 @@ if __name__ == "__main__":
             analyze_jobs.append((model, optimizer))
         
     with multiprocessing.Pool(processes=allocate_job(1)) as pool:
-        analyze_results = pool.map(analyze_experiment, analyze_jobs)
+        analyze_results = pool.starmap(ga_comp_analyze_experiment, analyze_jobs)
 
     if not all(analyze_results):
         print("Some analyses failed.")
