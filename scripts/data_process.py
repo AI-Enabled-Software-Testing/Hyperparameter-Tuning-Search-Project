@@ -5,6 +5,7 @@ from typing import List
 from typing import Callable
 
 import numpy as np
+import psutil
 from datasets import load_from_disk, Dataset, DatasetDict
 from skimage.color import rgb2gray
 from skimage.transform import resize
@@ -25,6 +26,26 @@ def build_transform_pipeline():
     return transform_batch
 
 
+def get_num_workers() -> int:
+    """Determine number of workers based on available RAM.
+    
+    Returns:
+        Number of processes to use (1-4), based on available memory.
+    """
+    mem = psutil.virtual_memory()
+    available_gb = mem.available / (1024 ** 3)
+    
+    # Use 1 worker per 2GB available RAM, max 4
+    if available_gb < 2:
+        return 1
+    elif available_gb < 4:
+        return 2
+    elif available_gb < 6:
+        return 3
+    else:
+        return 4
+
+
 def process_dataset(
     src_dir: Path, dst_dir: Path, transform_batch: Callable[[List], List]
 ) -> None:
@@ -39,11 +60,14 @@ def process_dataset(
             ds = ds.rename_column("img", "image")
         ds_dict[split] = ds
 
+    num_workers = get_num_workers()
+    print(f"Using {num_workers} worker(s) for processing")
+    
     for split, ds in ds_dict.items():
         ds_dict[split] = ds.map(
             lambda batch: {"image": transform_batch(batch["image"])},
             batched=True,
-            num_proc=4,
+            num_proc=num_workers,
         )
 
     ds_dict.save_to_disk(str(dst_dir))

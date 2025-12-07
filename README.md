@@ -19,12 +19,12 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 ## Metaheuristic Guided Search
 
 ### Baseline
-* [**Randomized Search**](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.RandomizedSearchCV.html)
-* [**Grid Search**](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html)
+* **Random Search** with a fixed and reproducible base seed across runs
 
 ### Other Algorithms
-* **Evolutionary Algorithm**: Memetic Algorithm (a specialized Genetic Algorithm)
-* **Simulated Annealing**
+* **Evolutionary Algorithm**: 
+   * Memetic Algorithm (a specialized Genetic Algorithm that escapes local search's plateau with one more tournament selection based on a `radius` parameter)
+   * Standard Genetic Algorithm
 * **Swarm Optimization**: Particle Swarm Optimization
 
 ## Prerequisites
@@ -104,4 +104,70 @@ The script includes:
 - CUDA support with automatic device detection
 
 ### Model Training with a Customized Tuning Process
-* A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\model_training_flow.ipynb`, including: a shorter demo with less data, data and model loading processes, an exhaustive tuning (without metaheuristics) on only the validation set, training and evaluating on the best found set of hyperparameters for each model.  
+* A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\rs_training.ipynb`. It focuses primarily on using a random solver (our choice of baseline) to search for the best set of hyperparameters based on a more updated version of classes and functions interfaces from our models. 
+
+### Run a Search quickly
+* You can run a quick hyperparameter search based on this script: 
+```bash
+python hparam_search.py
+```
+**Available arguments:**
+- `--model`: Model Choices - `["dt", "knn", "cnn"]`, default `dt`.
+- `--trials`: Number of Evaluations - default 5
+
+* It is designed for quick, simple hyperparameter optimization only with our baseline (random search), mainly for exploratory runs or TensorBoard logging.
+* It supports `dt`, `knn`, and `cnn` model options, via script arguments, but the CNN training is simpler (no explicit config object, no patience/early stopping control).
+* It passes parameters directly to model creation/training; and so, it'll be less flexible for advanced training configs (e.g., custom epochs, patience).
+* It is intended for quick experiments, visualizations, and debugging with a single optimizer.
+
+### Run a Full Experiment
+* You can run a full hyperparameter search based on this script: 
+```bash
+python scripts/run_experiment.py
+```
+**Available arguments:**
+- `--model`: Model Choices - `["dt", "knn", "cnn"]`, default `dt`. **Mandatory** Argument!!!
+- `--runs`: Number of independent runs - default 1.
+- `--trials`: Number of Evaluations - default 5.
+- `--evaluations`: Number of fitness evaluations per run - default 50
+- `--seed`: Base seed for randomization - default 42.
+- `--n-jobs`: Number of parallel workers - default 1 for a sequential run. Use -1 for all CPUs.
+
+* It is designed for systematic, reproducible experiments across all kinds of optimizers.
+* All optimizers are supported and selectable via CLI.
+* It saves results, convergence traces, and summaries to disk for later analysis (but not on TensorBoard).
+* For CNN, it uses a TrainingConfig object for fine-grained control (learning rate, weight decay, optimizer, batch size, patience); and disables early stopping for CNN by default for fair comparison.
+* Given its flexibility and robustness, it is intended for benchmarking, comparison, and research—especially when comparing optimizer performanc.
+
+### Analyze Results
+Upon completion of an execution from the `run_experiment.py` script, you will likely get some folders under `.cache/experiment` folder. You can visualize plots for analysis based on this script: 
+```bash
+python scripts/analyze_experiment.py`
+```
+**Available arguments:**
+- `--experiment`: Name of Experiment - `['cnn-rs', 'dt-ga', 'knn-pso']`
+- `--diagnose-pso`: Whether it runs diagnostics for PSO search.
+
+#### Supported Plots
+* Plateau Detection
+* Convergence Per Run
+* Convergence Comparison. (Note: If you want to recompile this graph of the exact same pair of experiment, please delete the file from `.cache/experiment_figures/` folder, because the script tries to avoid generating repeated graphs.)
+* Best Fitness over Evaluations with mean and std.
+* Total Time Across Runs.
+* Final Fitness Values Across Runs.
+* Run this command with tensorboard to inspect GPU usages of specific runs: `tensorboard --logdir .cache/tensorboard/[specific folder]`. 
+   * Note: this would require an extra dependency, by installing with: `pip install tensorflow`.
+
+#### Analysis Specific to PSO
+The `scripts/analyze_experiments.py` script tries to print diagnostics of the particle swarm optimization per run with advice.
+
+### Analysis Specific to GA
+You can also run the following script to run and visualize experiments in a scripted pipeline:
+```bash
+python scripts/analyze_ga.py
+```
+The above-mentioned script is only running 1 experiment followed by an analysis (with graphs plotting) in a **sequential** manner. If you prefer running with parallel processing, please run the following pipeline (but please note that you will likely wait for all the experiments to complete before getting models and plots persisted on disk). You can run the pipeline alternatively with the following command:
+```bash
+python scripts/analyze_ga_parallel_run.py
+```
+They run with a single-job operation anyways (`--n-jobs = 1`).

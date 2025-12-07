@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models.decision_tree import DecisionTreeModel
 from models.knn import KNNModel
 
-
 import numpy as np
 import torch
 
@@ -97,7 +96,8 @@ def get_optimizer(
     """Get optimizer instance by name."""
     optimizer_map = {
         "rs": RandomSearch,
-        "ga": GeneticAlgorithm,
+        "ga-standard": GeneticAlgorithm,
+        "ga-memetic": GeneticAlgorithm,
         "pso": ParticleSwarmOptimization,
     }
 
@@ -116,6 +116,16 @@ def get_optimizer(
             seed=seed,
             n_jobs=n_jobs,
         )
+    elif optimizer_name.lower().startswith("ga"):
+        is_memetic: bool = optimizer_name.lower() == "ga-memetic"
+        return optimizer_class(
+            param_space=param_space,
+            evaluate_fn=evaluate_fn,
+            metric_key="composite_fitness",
+            seed=seed,
+            radius=0.15 if is_memetic else None,
+            n_jobs=n_jobs,
+        )
     else:
         return optimizer_class(
             param_space=param_space,
@@ -126,6 +136,7 @@ def get_optimizer(
 
 
 def extract_convergence_trace(history: list) -> Dict[str, list]:
+
     """Extract convergence trace (best-so-far fitness at each evaluation)."""
     best_so_far = float("-inf")
     convergence = []
@@ -284,9 +295,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--optimizer",
         type=str,
-        required=True,
-        choices=["rs", "ga", "pso"],
-        help="Optimizer to use (rs=RandomSearch, ga=GeneticAlgorithm, pso=ParticleSwarmOptimization).",
+        choices=["rs", "ga-standard", "ga-memetic", "pso"],
+        help="Optimizer to use (rs=RandomSearch, ga-standard=GeneticAlgorithm Standard, ga-memetic=GeneticAlgorithm Memetic (For Local Search), pso=ParticleSwarmOptimization).",
     )
     parser.add_argument(
         "--runs",
@@ -310,7 +320,7 @@ def parse_args() -> argparse.Namespace:
         "--n-jobs",
         type=int,
         default=1,
-        help="Number of parallel workers for RandomSearch and PSO (default: 1, sequential). Use -1 for all CPUs.",
+        help="Number of parallel workers (default: 1, sequential). Use -1 for all CPUs.",
     )
     return parser.parse_args()
 
@@ -321,17 +331,19 @@ def main() -> None:
 
     # Handle -1 for all CPUs
     n_jobs = args.n_jobs if args.n_jobs > 0 else None
-    
-    run_experiment(
-        model_key=args.model,
-        optimizer_name=args.optimizer,
-        num_runs=args.runs,
-        evaluations=args.evaluations,
-        base_seed=args.seed,
-        n_jobs=n_jobs,
-    )
+
+    optimizers = ["rs", "ga-standard", "ga-memetic", "pso"] if args.optimizer is None else [args.optimizer]
+
+    for optimizer_name in optimizers:
+        run_experiment(
+            model_key=args.model,
+            optimizer_name=optimizer_name,
+            num_runs=args.runs,
+            evaluations=args.evaluations,
+            base_seed=args.seed,
+            n_jobs=n_jobs,
+        )
 
 
 if __name__ == "__main__":
     exit(main())
-
