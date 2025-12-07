@@ -1,6 +1,4 @@
-import subprocess
 from pathlib import Path
-import os
 import sys
 import multiprocessing
 import psutil
