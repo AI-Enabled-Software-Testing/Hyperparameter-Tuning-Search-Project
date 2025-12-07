@@ -9,6 +9,7 @@ import random
 import math
 from joblib import Parallel, delayed
 from dataclasses import dataclass
+from multiprocessing import Manager
 
 # Logging
 from torch.utils.tensorboard import SummaryWriter
@@ -57,7 +58,9 @@ class GeneticAlgorithm(Optimizer):
         self.radius = radius
         self.num_fittest = num_fittest
         # Memoization cache: maps trial number to (params, metrics, duration)
-        self._eval_cache: Dict[int, tuple[Dict[str, Any], Dict[str, float], float]] = {}
+        # Use Manager().dict() for thread-safe access in parallel execution
+        self._manager = Manager()
+        self._eval_cache = self._manager.dict()
 
     def run(self, trials: int, verbose: bool = False, writer: Optional[SummaryWriter] = None):
         """Run the Genetic Algorithm optimization process."""
@@ -99,9 +102,10 @@ class GeneticAlgorithm(Optimizer):
                         print(f"Population {geneID}/{self.populationSize}: {params}")
                     
                     # Check memoization cache to avoid re-evaluation based on trial number
-                    if evals_done in self._eval_cache:
+                    cache_key = evals_done
+                    if cache_key in self._eval_cache:
                         # Use cached result
-                        cached_params, metrics, duration = self._eval_cache[evals_done]
+                        cached_params, metrics, duration = self._eval_cache[cache_key]
                         if verbose:
                             print(f"  -> Using cached evaluation result for trial {evals_done}")
                     else:
@@ -109,37 +113,46 @@ class GeneticAlgorithm(Optimizer):
                         start = time.perf_counter()
                         metrics = self.evaluate_fn(params)
                         duration = time.perf_counter() - start
-                        # Store in cache by trial number
-                        self._eval_cache[evals_done] = (params, metrics, duration)
+                        # Store in cache by trial number (thread-safe with Manager.dict())
+                        self._eval_cache[cache_key] = (params, metrics, duration)
                     
                     # trial, params, metrics, duration
                     if verbose:
                         print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
                     results.append((evals_done, params, metrics, duration))
             else: # Parallel Processing
-                def evaluate_population(evals_done, params, eval_cache):
-                    """Evaluate a single population member."""
+                def evaluate_population(trial_id, params, eval_cache, evaluate_fn, metric_key, verbose_flag):
+                    """Evaluate a single population member (thread-safe)."""
                     # Check memoization cache to avoid re-evaluation based on trial number
-                    if evals_done in eval_cache:
-                        # Use cached result
-                        cached_params, metrics, duration = eval_cache[evals_done]
-                        print(f"  -> Using cached evaluation result for trial {evals_done}")
+                    cache_key = trial_id
+                    if cache_key in eval_cache:
+                        # Use cached result (thread-safe read from Manager.dict())
+                        cached_params, metrics, duration = eval_cache[cache_key]
+                        if verbose_flag:
+                            print(f"  -> Using cached evaluation result for trial {trial_id}")
                     else:
                         start = time.perf_counter()
-                        metrics = self.evaluate_fn(params)
+                        metrics = evaluate_fn(params)
                         duration = time.perf_counter() - start
-                        # Store in cache by trial number (note: updates to dict are thread-safe for unique keys)
-                        eval_cache[evals_done] = (params, metrics, duration)
+                        # Store in cache by trial number (thread-safe write with Manager.dict())
+                        eval_cache[cache_key] = (params, metrics, duration)
                     
                     # trial, params, metrics, duration
-                    if verbose:
-                        print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
-                    return (evals_done, params, metrics, duration)
+                    if verbose_flag:
+                        print(f"Current Trial has evaluated models {trial_id} times, with: {metric_key} = {metrics.get(metric_key, 'N/A')}, Duration: {duration:.4f} sec")
+                    return (trial_id, params, metrics, duration)
                 
                 parallel_verbose = 10 if verbose else 0
                 # Record results (mainly the individual fitness values) into an iterable structure
                 results += list(Parallel(n_jobs=self.n_jobs, verbose=parallel_verbose)(
-                    delayed(evaluate_population)(evals_done + idx, params, self._eval_cache) # added idx for uniqueness (avoid parallel crashes)
+                    delayed(evaluate_population)(
+                        evals_done + idx,  # trial_id for uniqueness
+                        params, 
+                        self._eval_cache,  # Thread-safe Manager.dict()
+                        self.evaluate_fn,  # Pass function to avoid closure issues
+                        self.metric_key,   # Pass metric_key
+                        verbose            # Pass verbose flag
+                    )
                     for idx, params in enumerate(all_params) # each gene and param value in a parameters set
                 ))
             
