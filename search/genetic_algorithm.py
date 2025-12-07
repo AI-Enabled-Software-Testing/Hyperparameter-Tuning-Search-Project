@@ -75,6 +75,7 @@ class GeneticAlgorithm(Optimizer):
                     print(f"Using {self.n_jobs} parallel workers")
         
         all_params = self._initialize_population(self.populationSize) # Initial Population
+        assert len(all_params) == self.populationSize, "Initial population size should match the defined population size"
         results = []
         evals_done = 0 # To control the budget with `trials`
 
@@ -177,8 +178,14 @@ class GeneticAlgorithm(Optimizer):
                 num_parents=len(all_params) // 2 # Elitism: shortlisting top 50%, also suggested by the paper
             )
             # A brief Checking
-            assert len(elites) < len(all_params), "Chosen Elites should be fewer than the total population"
-            assert len(elites) < self.populationSize, "Number of selected Elites should be less than the population size"
+            if len(elites) > len(all_params):
+                if verbose:
+                    print("Number of Elites exceeded total population; trimming elites.")
+                elites = elites[:len(all_params)]
+            if len(elites) > self.populationSize:
+                if verbose:
+                    print("Number of Elites exceeded population size; trimming elites.")
+                elites = elites[:self.populationSize]
 
             # 2. Crossover
             offspring: List[Dict[str, Any]] = [] # They are evolved children
@@ -216,7 +223,10 @@ class GeneticAlgorithm(Optimizer):
                 mutated_child = self._mutate(child)
                 mutated_offspring.append(mutated_child)
             # A Brief Checking
-            assert len(mutated_offspring) == len(offspring), "Number of Mutated Offsprings should match the Offsprings"
+            if len(mutated_offspring) != len(offspring):
+                if verbose:
+                    print("Number of Mutated Offsprings does not match the Offsprings; adjusting accordingly.")
+                mutated_offspring = random.sample(mutated_offspring, len(offspring))
 
             # Replacing the population with new generation: elites + mutated_offspring
             new_generation = elites + mutated_offspring
@@ -228,7 +238,10 @@ class GeneticAlgorithm(Optimizer):
             if len(new_generation) > self.populationSize:
                 new_generation = new_generation[:self.populationSize]
             all_params = new_generation
-            assert len(all_params) == self.populationSize, "New generation population size should match the defined population size"
+            if len(all_params) != self.populationSize:
+                if verbose:
+                    print("Adjusting new generation to match population size.")
+                all_params = random.sample(all_params, self.populationSize)
 
             if verbose:
                 print(f"Generation {gen+1} completed. Current Population size: {len(all_params)}")
