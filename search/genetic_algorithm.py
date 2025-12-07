@@ -8,12 +8,14 @@ from .base import Optimizer
 import random
 import math
 from joblib import Parallel, delayed
+from dataclasses import dataclass
 
 # Logging
 from torch.utils.tensorboard import SummaryWriter
 import time
 import json
 
+@dataclass
 class SearchResult:
     best_params: Dict[str, Any]
     best_metrics: Dict[str, float]
