@@ -136,7 +136,7 @@ class GeneticAlgorithm(Optimizer):
                 parallel_verbose = 10 if verbose else 0
                 # Record results (mainly the individual fitness values) into an iterable structure
                 results += list(Parallel(n_jobs=self.n_jobs, verbose=parallel_verbose)(
-                    delayed(evaluate_population)(evals_done + idx, params, self._eval_cache)
+                    delayed(evaluate_population)(evals_done + idx, params, self._eval_cache) # added idx for uniqueness (avoid parallel crashes)
                     for idx, params in enumerate(all_params) # each gene and param value in a parameters set
                 ))
             
