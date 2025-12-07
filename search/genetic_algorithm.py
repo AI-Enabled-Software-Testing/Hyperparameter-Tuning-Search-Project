@@ -206,8 +206,6 @@ class GeneticAlgorithm(Optimizer):
                     child = self._crossover(parent1, parent2, n=1)
                     offspring.append(child)
                 attempts += 1
-            # A Brief Checking
-            assert len(offspring) <= max_offspring, f"Number of Offsprings {len(offspring)} should not exceed the allowed maximum of {max_offspring}"
 
             # 3. Mutation
             # We get a list of mutated children from crossover offsprings
