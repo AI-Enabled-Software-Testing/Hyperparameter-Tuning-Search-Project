@@ -110,7 +110,8 @@ class GeneticAlgorithm(Optimizer):
                         self._eval_cache[evals_done] = (params, metrics, duration)
                     
                     # trial, params, metrics, duration
-                    print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
+                    if verbose:
+                        print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
                     results.append((evals_done, params, metrics, duration))
             else: # Parallel Processing
                 def evaluate_population(evals_done, params, eval_cache):
@@ -128,14 +129,15 @@ class GeneticAlgorithm(Optimizer):
                         eval_cache[evals_done] = (params, metrics, duration)
                     
                     # trial, params, metrics, duration
-                    print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
+                    if verbose:
+                        print(f"Current Trial has evaluated models {evals_done} times, with: {self.metric_key} = {metrics.get(self.metric_key, 'N/A')}, Duration: {duration:.4f} sec")
                     return (evals_done, params, metrics, duration)
                 
                 parallel_verbose = 10 if verbose else 0
                 # Record results (mainly the individual fitness values) into an iterable structure
                 results += list(Parallel(n_jobs=self.n_jobs, verbose=parallel_verbose)(
-                    delayed(evaluate_population)(evals_done, params, self._eval_cache)
-                    for _, params in enumerate(all_params, start=1) # each gene and param value in a parameters set
+                    delayed(evaluate_population)(evals_done + idx, params, self._eval_cache)
+                    for idx, params in enumerate(all_params) # each gene and param value in a parameters set
                 ))
             
             # After Evaluation, Update the number of evaluations done
@@ -414,13 +416,17 @@ class GeneticAlgorithm(Optimizer):
             )
         )
         
-        # Swapping - to produce a newly unseen solution
-        for crossover_point in crossover_points: # adapt to n-point crossover
-            for paramInd, key in enumerate(parent1.keys()): # key is the parameter name in string format
-                if paramInd < crossover_point:
-                    child[key] = parent1[key]
-                else:
-                    child[key] = parent2[key]
+        # Swapping - to produce a newly unseen solution using n-point crossover
+        # Alternate between parents at each crossover point
+        current_parent = 0  # Start with parent1
+        next_point_idx = 0
+        for paramInd, key in enumerate(parent1.keys()): # key is the parameter name in string format
+            # Check if we've reached the next crossover point
+            if next_point_idx < len(crossover_points) and paramInd >= crossover_points[next_point_idx]:
+                current_parent = 1 - current_parent  # Switch parent
+                next_point_idx += 1
+            # Assign value from current parent
+            child[key] = parent1[key] if current_parent == 0 else parent2[key]
         return child
 
     def _mutate(self, individual: Dict[str, Any], mutation_rate: float = 0.01, mutation_strength: float = 0.1) -> Dict[str, Any]:
