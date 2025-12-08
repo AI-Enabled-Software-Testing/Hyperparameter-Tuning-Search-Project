@@ -6,3 +6,10 @@ __pycache__/
 .aim/
 **/runs/
 *.egg-info/
+# Images shown in README
+**/models_comparison_ga-standard.png
+**/models_comparison_pso.png
+**/models_comparison_rs.png
+**/all_experiments_cnn.png
+**/all_experiments_dt.png
+**/all_experiments_knn.png

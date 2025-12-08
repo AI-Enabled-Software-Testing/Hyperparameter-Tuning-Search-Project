@@ -13,19 +13,30 @@ This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%
 
 ## Models in Consideration
 * **Tree-based Model**: Decision Tree
+
+![Comparison of Optimizers on Decision Tree](.cache/experiment_figures/Optimizers_Comparison_dt/all_experiments_dt.png)
 * **(Pixels) Permutation-based** (especially, neural networks): Convolutional Neural Network (CNN)
+
+![Comparison of Optimizers on CNN](.cache/experiment_figures/Optimizers_Comparison_cnn/all_experiments_cnn.png)
 * **Kernel-based**: K-Nearest-Neighbor (KNN)
+
+![Comparison of Optimizers on KNN](.cache/experiment_figures/Optimizers_Comparison_knn/all_experiments_knn.png)
 
 ## Metaheuristic Guided Search
 
 ### Baseline
 * **Random Search** with a fixed and reproducible base seed across runs
+![Comparison of Models using Random Search](.cache/experiment_figures/Models_Comparison_rs/models_comparison_rs.png)
 
 ### Other Algorithms
 * **Evolutionary Algorithm**: 
    * Memetic Algorithm (a specialized Genetic Algorithm that escapes local search's plateau with one more tournament selection based on a `radius` parameter)
    * Standard Genetic Algorithm
+
+![Comparison of Models using Standard Genetic Algorithm](.cache/experiment_figures/Models_Comparison_ga-standard/models_comparison_ga-standard.png)
 * **Swarm Optimization**: Particle Swarm Optimization
+
+![Comparison of Models using Particle Swarm Optimization](.cache/experiment_figures/Models_Comparison_pso/models_comparison_pso.png)
 
 ## Prerequisites
 - Python 3.9 or higher
@@ -106,6 +117,9 @@ The script includes:
 ### Model Training with a Customized Tuning Process
 * A Proof-of-Concept end-to-end quick demo is shown in the Jupyter Notebook: `notebooks\rs_training.ipynb`. It focuses primarily on using a random solver (our choice of baseline) to search for the best set of hyperparameters based on a more updated version of classes and functions interfaces from our models. 
 
+### Download Training Results
+For the time being, we've prepared a zip folder, named `experiments.bak.zip`. You can load each subfolder inside `experiment`, into your git-ignored `.cache/experiment` directory, in the format of `<model>-<optimizer name>` as the folder name, with all the run folders captured by tensorboard inside. You need to also copy the entire `final_training` folder right under `.cache/`. Then you are good to run `analyze_experiment.py` or `experiment_analysis.ipynb` to visualize results of different searches on different models.
+
 ### Run a Search quickly
 * You can run a quick hyperparameter search based on this script: 
 ```bash
@@ -157,11 +171,12 @@ python scripts/analyze_experiment.py`
 * Final Fitness Values Across Runs.
 * Run this command with tensorboard to inspect GPU usages of specific runs: `tensorboard --logdir .cache/tensorboard/[specific folder]`. 
    * Note: this would require an extra dependency, by installing with: `pip install tensorflow`.
+* Final Fitness Box Plot 
 
 #### Analysis Specific to PSO
 The `scripts/analyze_experiments.py` script tries to print diagnostics of the particle swarm optimization per run with advice.
 
-### Analysis Specific to GA
+#### Analysis Specific to GA
 You can also run the following script to run and visualize experiments in a scripted pipeline:
 ```bash
 python scripts/analyze_ga.py
@@ -171,3 +186,12 @@ The above-mentioned script is only running 1 experiment followed by an analysis 
 python scripts/analyze_ga_parallel_run.py
 ```
 They run with a single-job operation anyways (`--n-jobs = 1`).
+
+#### Specific Analysis in General
+A detailed analysis is shown in the Jupyter Notebook: `notebooks\experiment_analysis.ipynb`. It focuses primarily on 3 things:
+* **Mean Final Fitness** of Runs per model-optimizer combination
+* **Final Fitness Distribution** Box Plot
+* **Final Training** Results, in terms of composite fitness.
+* A **Comparison Plot** of fitnesses across optimizers under a certain model
+* **Convergence Plots** per model
+* Wilcoxon  **Statistical Test** (significance level = 0.05)
