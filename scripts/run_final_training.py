@@ -103,7 +103,6 @@ def train_and_eval(
             optimizer=params.get("optimizer", default_config.optimizer),
             batch_size=int(params.get("batch_size", default_config.batch_size)),
             checkpoint_path=str(out_dir / "best_model.pth"),
-            validate_every_n_epochs=1,
         )
         if device is None:
             device = get_device()
