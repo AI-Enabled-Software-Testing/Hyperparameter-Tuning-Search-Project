@@ -79,8 +79,8 @@ def load_cifar10_data():
     if not dataset_path.exists():
         raise FileNotFoundError(
             f"Processed dataset not found at {dataset_path}. "
-            "Please run:"
-            "uv run python -m scripts.data_download"
+            "Please run:\n"
+            "uv run python -m scripts.data_download\n"
             "uv run python -m scripts.data_process"
         )
 
