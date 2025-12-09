@@ -27,7 +27,7 @@ def ga_comp_run_experiment(model, optimizer):
     return True
 
 def ga_comp_analyze_experiment(model, optimizer):
-    experiment_name = f"{model}_{optimizer}_experiment"
+    experiment_name = f"{model}-{optimizer}"
     try:
         if optimizer.startswith("ga"): # Only try GA optimizers
             main(
@@ -41,8 +41,7 @@ def ga_comp_analyze_experiment(model, optimizer):
 
 def experiment_exists(modelName: str, optimizerName: str) -> bool:
     """Check if experiment results already exist."""
-    experiment_name = f"{modelName}_{optimizerName}_experiment"
-    experiment_file = REPO_ROOT / ".cache" / "experiment" / f"{experiment_name}.json"
+    experiment_file = REPO_ROOT / ".cache" / "experiment" / f"{modelName}-{optimizerName}.json"
     return experiment_file.exists()
 
 if __name__ == "__main__":
