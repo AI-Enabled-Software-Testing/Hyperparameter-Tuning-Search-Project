@@ -1,3 +1,56 @@
 \section{Results}
 
-TODO
+This section presents the empirical findings from the 10 independent runs of each optimizer on the three models (DT, KNN, CNN).
+
+\subsection{RQ1: Effectiveness and Convergence}
+
+All optimizers improved solutions over 50 evaluations, but convergence efficiency varied by model (Figure \ref{fig:convergence}). For DT and KNN, which have relatively small search spaces, GA, PSO, and RS converged rapidly to near-identical optimal configurations. Their final fitness scores were approximately 0.3384 and 0.4308, respectively (Figure \ref{fig:test_perf}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{./figures/convergence.png}
+    \caption{Best fitness convergence behavior of GA, PSO, and RS across 50 evaluations for all three models.}
+    \label{fig:convergence}
+\end{figure}
+
+For the more complex CNN, GA showed steady improvement from a lower initial fitness, while RS occasionally found high-fitness configurations early (Figure \ref{fig:convergence}). All optimizers converged to a similar final performance of approximately 0.77 (Figure \ref{fig:test_perf}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{./figures/test_performance.png}
+    \caption{Final Test Performance (Composite Fitness) of the best solutions found by each optimizer.}
+    \label{fig:test_perf}
+\end{figure}
+
+\subsection{RQ2: Stability}
+
+The stability of final solutions, shown by box plots of fitness across 10 runs (Figure \ref{fig:boxplot}), was high for all models. Variance was minimal for DT and KNN. For CNN, all optimizers produced similar interquartile ranges (approximately 0.79 to 0.83), with minor differences in outlier counts (GA: 1, PSO: 2, RS: 1).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{./figures/stability.png}
+    \caption{Box plots showing the distribution of final fitness scores over 10 independent runs.}
+    \label{fig:boxplot}
+\end{figure}
+
+\subsection{Statistical Significance}
+
+Wilcoxon signed-rank tests showed no significant performance differences between any optimizer pairs across all models ($p > 0.05$; Table \ref{tab:wilcoxon}). The nearest to significance was PSO versus RS on KNN (p = 0.094). The memetic GA variant also showed no statistically significant improvement over the standard GA.
+
+\begin{table}[H]
+\centering
+\caption{Wilcoxon Signed-Rank Test Results (p-values)}
+\label{tab:wilcoxon}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Comparison} & \textbf{CNN} & \textbf{DT} & \textbf{KNN} \\
+\midrule
+GA-Standard vs PSO & 0.322 & 1.000 & 0.426 \\
+GA-Standard vs RS & 0.275 & 0.846 & 0.734 \\
+PSO vs RS & 0.557 & 0.375 & 0.094 \\
+GA-Memetic vs GA-Standard & -- & 0.625 & 1.000 \\
+GA-Memetic vs PSO & -- & 0.770 & 0.344 \\
+GA-Memetic vs RS & -- & 0.432 & 0.688 \\
+\bottomrule
+\end{tabular}
+\end{table}

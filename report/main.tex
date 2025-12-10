@@ -12,19 +12,17 @@
  \usepackage{amssymb}
  \usepackage{natbib}
 
- \title{Testing the Effectiveness, Efficiency, and Stability\\of Search-Based Hyperparameter Optimizers }
+\title{Testing the Effectiveness, Convergence, and Stability\\of Search-Based Hyperparameter Optimizers }
 \author{
     Fernando Berti Cruz Nogueira (abert036@uottawa.ca), 
     Kelvin Mock (kmock073@uOttawa.ca)
 }
-\date{October 2025}
  
 \usepackage{fancyhdr}
 \setlength{\headheight}{12.5pt}
 \addtolength{\topmargin}{-0.5pt}
 \fancypagestyle{plain}{%  the preset of fancyhdr 
     \fancyhf{} % clear all header and footer fields
-    \fancyfoot[L]{\thedate}
     \fancyhead[L]{CSI 5186 - AI-enabled Software Verification and Testing, Final Report (Fall 2025)}
 }
 \makeatletter
@@ -49,6 +47,8 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{tabularx}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
 \usepackage[colorlinks=true,citecolor=blue,linkcolor=blue]{hyperref}
 \begin{document}
 \maketitle
@@ -59,17 +59,17 @@
 \end{tabular}
 
 \begin{abstract}
-Hyperparameter optimization is a critical but computationally expensive task for developing effective machine learning models. This report presents an empirical study comparing a Randomized Search (RS) baseline against two representative metaheuristics: a Genetic Algorithm (GA) and Particle Swarm Optimization (PSO). This selection is made to contrast two primary search strategies: global exploration (GA) and local exploitation (PSO). We evaluate the ability of these algorithms to optimize the hyperparameters of three distinct machine learning models (Decision Tree, k-Nearest Neighbors, and a Convolutional Neural Network) on the grayscale CIFAR-10 dataset~\cite{krizhevsky2009learning}. To ensure a fair and balanced assessment we define a composite fitness function. We evaluate the optimizers across three quality attributes: effectiveness (solution quality), efficiency (computational cost), and stability (consistency across runs). The empirical results will be validated using statistical tests to provide statistically grounded conclusions.
+Hyperparameter optimization is a critical but computationally expensive task for developing effective machine learning models. This report presents an empirical study comparing a Randomized Search (RS) baseline against two representative metaheuristics: a Genetic Algorithm (GA) and Particle Swarm Optimization (PSO). This selection is made to contrast two primary search strategies: global exploration (GA) and local exploitation (PSO). We evaluate the ability of these algorithms to optimize the hyperparameters of three distinct machine learning models (Decision Tree, k-Nearest Neighbors, and a Convolutional Neural Network) on the grayscale CIFAR-10 dataset~\cite{krizhevsky2009learning}. To ensure a fair and balanced assessment we define a composite fitness function. We evaluate the optimizers across three quality attributes: effectiveness (solution quality), convergence (improvement over a fixed evaluation budget), and stability (consistency across runs). The empirical results will be validated using statistical tests to provide statistically grounded conclusions.
 \end{abstract}
 
 \input{sections/1_introduction}
 \input{sections/2_problem_formulation}
 \input{sections/3_experiment}
 \input{sections/4_results}
-
+\input{sections/5_limitations}
+\input{sections/6_conclusion}
 
 % BEFORE END
-\clearpage
 \bibliographystyle{plainnat}
 \bibliography{refs}
 
