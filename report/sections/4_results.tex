@@ -15,7 +15,7 @@ To answer RQ1, we analyzed the final fitness scores and the convergence behavior
 
 For the \textbf{Decision Tree} and \textbf{KNN}, the search space was relatively small. Consequently, all three optimizers rapidly converged to near-identical optimal configurations. As shown in the final test performance (Figure \ref{fig:test_perf}), the DT achieved a fitness of $\approx 0.3384$, while the KNN achieved $\approx 0.4308$.
 
-We have also plotted the mean and standard deviation of the current fitness for each $n$ evaluations for each optimizer. As shown in Figure \ref{fig:evaluations}, the current fitness is generally improving over the evaluations, though with varying efficiency.
+We have also plotted the mean and standard deviation of the current fitness for each $n$ evaluations for each optimizer. The curves are smoothed for readability (with a smoothing factor of 0.5), while the shaded regions reflect the underlying variation. As shown in Figure \ref{fig:evaluations}, the current fitness is generally improving over the evaluations, though with varying efficiency.
 
 \begin{figure}[H]
     \centering
@@ -76,4 +76,4 @@ The analysis reveals:
     \item \textbf{Memetic Variants:} GA-Memetic comparisons (vs GA-Standard, PSO, RS) are all non-significant ($p > 0.05$), showing no measurable improvement over the standard GA under our budget.
 \end{itemize}
 
-Given the GA population size of $30$ and the strict budget of $50$ evaluations, the algorithm is structurally capped at fewer than three full generations: $30$ evaluations are spent on initialization, leaving only $20$ offspring evaluations (about $0.67$ of a generation). Roughly $60\%$ of the budget is therefore consumed by warm-up sampling, so the GA behaves similarly to Random Search under this constraint. This limited evolutionary pressure helps explain the non-significant differences in Table \ref{tab:wilcoxon}, as crossover and mutation had too few iterations to drive convergence.
+Given the GA population size of $30$ and the strict budget of $50$ evaluations, the algorithm is structurally capped at fewer than three full generations: $30$ evaluations are spent on initialization, leaving only $20$ offspring evaluations (about $0.67$ of a generation). Roughly $60\%$ of the budget is therefore consumed by warm-up sampling, so GA behaves similarly to Random Search under this constraint. PSO faces the same tight budget and likewise does not clear a statistically meaningful advantage. Under such sub-$2\times$-population budgets, Random Search is effectively superior because it pays no population-initialization overhead. The value of GA (and possibly PSO) would likely emerge only with larger budgets that permit 10+ generations, where exploitation phases can amortize their startup cost.
