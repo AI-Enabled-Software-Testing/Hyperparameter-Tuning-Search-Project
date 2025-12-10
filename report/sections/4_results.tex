@@ -1,3 +1,68 @@
 \section{Results}
 
-TODO
+This section presents the empirical findings from the 10 independent runs of each optimizer on the three models (DT, KNN, CNN).
+
+\subsection{RQ1: Effectiveness and Convergence}
+
+To answer RQ1, we analyzed the final fitness scores and the convergence behavior of each optimizer. As illustrated in Figure \ref{fig:convergence}, all three optimizers demonstrated the ability to improve solutions over the generations, though with varying efficiency.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{./figures/convergence.png}
+    \caption{Convergence behavior of GA, PSO, and RS across 50 evaluations for all three models.}
+    \label{fig:convergence}
+\end{figure}
+
+For the \textbf{Decision Tree} and \textbf{KNN}, the search space was relatively small. Consequently, all three optimizers rapidly converged to near-identical optimal configurations. As shown in the final test performance (Figure \ref{fig:test_perf}), the DT achieved a fitness of $\approx 0.3384$, while the KNN achieved $\approx 0.4308$.
+
+For the \textbf{CNN}, which possesses the largest and most complex search space, we observed distinct behaviors. While GA (orange line in Figure \ref{fig:convergence}) started with lower fitness, it showed steady improvement. Random Search (RS), surprisingly, started with high fitness in several runs, likely due to the efficacy of random sampling in high-dimensional spaces where few parameters dominate performance. Ultimately, all algorithms converged to a test performance of approximately $0.77$ (Figure \ref{fig:test_perf}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{./figures/test_performance.png}
+    \caption{Final Test Performance (Composite Fitness) of the best solutions found by each optimizer.}
+    \label{fig:test_perf}
+\end{figure}
+
+\subsection{RQ2: Stability}
+
+Stability was measured by the standard deviation of the final fitness scores across the 10 runs, visualized in the box plots in Figure \ref{fig:boxplot}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{./figures/stability.png}
+    \caption{Box plots showing the distribution of final fitness scores over 10 independent runs.}
+    \label{fig:boxplot}
+\end{figure}
+
+The box plots provide a nuanced view of the stability for each model. For the \textbf{CNN}, the distributions are quite similar across optimizers, with whiskers generally falling within the $0.79-0.83$ range. In terms of outliers, GA and RS each exhibit one, while PSO displays two. For the \textbf{Decision Tree (DT)}, Random Search (RS) shows the largest interquartile range and a significant lower whisker; however, the overall variance remains small given the scale ($0.3415-0.3440$). The metaheuristics are more packed at the upper end, though GA includes two outliers, and PSO has a lower whisker extending to approximately $0.34225$. Finally, for the \textbf{KNN}, no outliers are observed for any of the optimizers.
+
+\subsection{Statistical Significance}
+
+We performed the \textbf{Wilcoxon signed-rank test} to determine if there were statistically significant differences between the optimizers. The results are summarized in Table \ref{tab:wilcoxon}.
+
+\begin{table}[H]
+\centering
+\caption{Wilcoxon Signed-Rank Test Results (p-values)}
+\label{tab:wilcoxon}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Comparison} & \textbf{CNN} & \textbf{DT} & \textbf{KNN} \\
+\midrule
+GA-Standard vs PSO & 0.322 & 1.000 & 0.426 \\
+GA-Standard vs RS & 0.275 & 0.846 & 0.734 \\
+PSO vs RS & 0.557 & 0.375 & 0.094 \\
+GA-Memetic vs GA-Standard & -- & 0.625 & 1.000 \\
+GA-Memetic vs PSO & -- & 0.770 & 0.344 \\
+GA-Memetic vs RS & -- & 0.432 & 0.688 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The analysis reveals:
+\begin{itemize}
+    \item \textbf{No Significant Differences:} All pairwise comparisons yield $p > 0.05$, so we fail to reject the null hypothesis across models.
+    \item \textbf{Identical Performance (DT):} GA-Standard vs PSO remains $p=1.000$, indicating indistinguishable outcomes on Decision Trees.
+    \item \textbf{Near Significance (KNN):} PSO vs RS on KNN is $p=0.094$, hinting PSO may modestly outperform RS, but it does not reach $\alpha=0.05$.
+    \item \textbf{Memetic Variants:} GA-Memetic comparisons (vs GA-Standard, PSO, RS) are all non-significant ($p > 0.05$), showing no measurable improvement over the standard GA under our budget.
+\end{itemize}

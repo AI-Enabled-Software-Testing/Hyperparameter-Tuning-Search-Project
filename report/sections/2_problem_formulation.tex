@@ -1,20 +1,50 @@
-
 \section{Problem Formulation}
 
-\subsection{Objective Function}
+\subsection{Representation and Objective Function}
 
-HPO is a black-box optimization problem. The objective function $f(\theta)$, which represents the model's performance for a given hyperparameter configuration $\theta$, presents many challenges: it is computationally expensive to evaluate, it is non-differentiable, and the search space $\Theta$ is often complex and of mixed-types (continuous, discrete, and categorical). These properties make HPO suitable for search-based metaheuristic techniques.
+HPO is a black-box optimization problem. It happens \textbf{prior to} the actual training loop. The problem is represented by arrays of possible values of each parameter type in table \ref{tab:hparam_space}. The objective function $f(\theta)$, which represents the model's performance for a given hyperparameter configuration $\theta$, presents many challenges: it is computationally expensive to evaluate, it is non-differentiable, and the search space $\Theta$ is often complex and of mixed-types (continuous, discrete, and categorical). These properties make HPO suitable for search-based metaheuristic techniques.
 
 \subsection{Algorithm Selection}
 
 \subsubsection{Baseline: Randomized Search}
 
-RS is the standard scientific baseline for HPO. \citet{bergstra2012random} demonstrated empirically that RS is more efficient than Grid Search for HPO, as it does not waste evaluations on unimportant parameters. Therefore, any intelligent algorithm must demonstrate superiority over RS to be considered effective.
+Random Search (RS) is the standard scientific baseline for HPO. \citet{bergstra2012random} demonstrated empirically that RS is more efficient than Grid Search for HPO. Therefore, any intelligent algorithm must demonstrate superiority over RS to be considered effective.
 
-\subsubsection{Genetic Algorithm}
+\subsubsection{Evolutionary Genetic Algorithm}
 
-TODO
+Inspired by Darwinian evolution, the Genetic Algorithm (GA) searches for optimal solutions using \textit{selection}, \textit{crossover}, and \textit{mutation}. We implement a \textbf{Memetic Algorithm} variant, which includes a local search component to escape fitness plateaus. As described in \cite{metaheuristics-cookbook}, a radius-based elitism is applied before crossover to refine the fittest individuals.
 
 \subsubsection{Particle Swarm Optimization}
 
-PSO models a swarm where individuals are strongly influenced by the single best-found solution. This behaviour leads to rapid convergence, often finding a "good-enough" solution quickly. This same strength can also be a weakness, as it may converge prematurely to a suboptimal solution. The swarm can rapidly cluster around the first local optimum it finds, losing diversity and becoming "stuck" before the true global optimum is found.
+PSO models a swarm where individuals are influenced by both their personal best (\texttt{p\_best}) and the global best (\texttt{g\_best}) solutions. The velocity of each particle is updated using inertia weight ($w$) and acceleration coefficients ($c_1, c_2$), balancing exploration and exploitation.
+
+\begin{table}[htbp]
+\centering
+\caption{Optimizer Configuration Parameters}
+\label{tab:algo_params}
+\small
+\begin{tabularx}{\textwidth}{lllX}
+\toprule
+\textbf{Algorithm} & \textbf{Parameter} & \textbf{Value} & \textbf{Description} \\
+\midrule
+\multirow{4}{*}{Genetic Alg.} 
+    & Population & 30 & Number of individuals per generation. \\
+\cmidrule{2-4}
+    & Generations & 10 & Maximum total evolutionary iterations. \\
+\cmidrule{2-4}
+    & Elitism & 50\% & Proportion of population preserved/selected. \\
+\cmidrule{2-4}
+    & Radius & 0.0 & Memetic-local-search radius (0.15 when memetic is enabled; 0 for standard GA runs). \\
+\midrule
+\multirow{4}{*}{PSO}
+    & Particles & 10 & Size of the swarm. \\
+\cmidrule{2-4}
+    & $w$ (Inertia) & 0.5 & Inertia weight controlling velocity retention. \\
+\cmidrule{2-4}
+    & $c_1$ (Cognitive) & 1.5 & Weight for personal best influence. \\
+\cmidrule{2-4}
+    & $c_2$ (Social) & 1.5 & Weight for global best influence. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
