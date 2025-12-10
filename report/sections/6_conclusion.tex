@@ -1,20 +1,12 @@
 \section{Conclusion}
 
-\subsection*{RQ1: Effectiveness and Convergence Rates against Baseline}
+This study evaluated metaheuristic optimizers (GA, PSO) against a Randomized Search baseline under a strict budget of 50 evaluations. No significant performance difference was found between methods across Decision Tree, KNN, or CNN models ($p > 0.05$), with all reaching similar fitness plateaus.
 
-This study evaluated metaheuristic optimizers (GA, PSO) against a Randomized Search baseline under a strict budget of 50 evaluations. 
-
-\subsection*{RQ2: Difference in Stability}
-No significant performance difference was found between searching methods across Decision Tree, KNN, or CNN models ($p > 0.05$), with all reaching similar fitness plateaus.
-
-\subsection*{Further Observations}
 The result is explained by initialization overhead: with a population of 30, GA used 60\% of its budget on initial sampling, leaving too few evaluations for evolutionary operators to yield improvement. In such micro-budget regimes (budget $< 2 \times$ population), population-based methods behave similarly to Random Search.
 
-\paragraph{Insufficient Budget} Therefore, for hyperparameter optimization with very limited evaluations, the added complexity of metaheuristics like GA and PSO is not justified. Random Search proved equally effective baseline under these constraints.
+Therefore, for hyperparameter optimization with very limited evaluations, the added complexity of metaheuristics like GA and PSO is not justified. Random Search proved equally effective baseline under these constraints.
 
-\subsection*{Future Work}
-\vspace{1em}
-\noindent Further contribution should:
+Future work should:
 \begin{itemize}
     \item Increase evaluation budgets to allow amortization of initialization costs.
     \item Explore adaptive or budget-aware variants of GA and PSO.
