@@ -4,6 +4,9 @@ This project aims to explore and analyze metaheuristic search-based algorithms f
 ## Proposal
 This is our [idea](./Project%20Proposal/Project%20Proposal%20-%20Fernando%20and%20Kelvin.pdf).
 
+## Report
+This is a [summary](./report/CSI5186_AI_Testing_Project_Report___Fernando__Kelvin.pdf) of our work with valid justifications.
+
 ## Datasets
 * [CIFAR-10](https://www.cs.toronto.edu/~kriz/cifar.html)
     * Object Recognition
