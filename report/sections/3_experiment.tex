@@ -22,9 +22,9 @@ In our study, we aim to cover the following machine learning models:
 
 \paragraph{Decision Tree (DT)} DT is the simplest model in nature. It is tree-based which suggests making predictions based on binary predicates. Its architecture is not complex for training and it is also highly explainable to non-technical persons. It is also widely used in real-world production-grade systems like autonomous vehicles \cite{autonomous-vehicle-appl}. Given its simplicity and popularity, we start our analysis on exploring what parameters minimally have to be tuned for the simplest model, and how it performs during tuning with metaheuristics. For simplicity, a prebuilt structure from \cite{dt-scikit} is used.
 
-\paragraph{K-Nearest Neighbors (KNN)} KNN is another simple model which predicts based on the class of a nearest neighbor among existing data instances. From the perspective of explainability, a prior work \cite{mygithub-drugconsumpML} suggests that, depending on datasets, sometimes a KNN classifier could be linear-based, but in the case of an image dataset, KNN in our experiment are predicting from highly dimensional image arrays, whose predictions need to be generalized by a kernel-based explainer. The model's architecture itself is not complex but the dataset involved could be a bit heavier training task. We used it as another type of model in our experiment. For simplicity, a prebuilt structure from \cite{knn-scikit} is used.
+\paragraph{K-Nearest Neighbors (KNN)} We ultilize \textit{KNeighborsClassifier} from \cite{knn-scikit} which predicts based on the class of a nearest neighbor among existing data instances. From the perspective of explainability, a prior work \cite{mygithub-drugconsumpML} suggests that, depending on datasets, sometimes a KNN classifier could be linear-based, but in the case of an image dataset, KNN in our experiment are predicting from highly dimensional image arrays, whose predictions need to be generalized by a kernel-based explainer. The model's architecture itself is not complex but the dataset involved could be a bit heavier training task. We used it as an alternative type in our experiment.
 
-\paragraph{Convolutional Neural Network (CNN)} While the above models might exhibit a simpler architecture, CNN, on the other hand, is a common deep learning architecture in practical works, which helps learning image recognition tasks more efficiently. It is a fully-connected neural network architecture which leverages operations known as "convolutions". Each of which utilizes a subset of pixels, known as a "kernel", or a "filter", iteratively learn those patterns. Custom neural networks generally, in the real-world, involve far more hyper-parameters during their training, and thus, tuning them is computationally much heavier than those prebuilt surrogate models. However, bad hyper-parameters could also increase the resulting error rate of the model \cite{metaheuristics-cookbook}. Therefore, a suitable metaheuristic search here comes with an important role to help determine the best set of hyper-parameters with fewer resources than an exhaustive search. Figure~\ref{fig:cnn_arch} summarizes the CNN backbone used in our experiments.
+\paragraph{Convolutional Neural Network (CNN)} While the above models might exhibit a simpler architecture, CNN, on the other hand, is a common deep learning architecture in practical works, which helps learning image recognition tasks more efficiently. It is a fully-connected 3-layered neural network with batch normalization, which takes operations known as "convolutions". Each of which utilizes a subset of pixels, known as a "kernel", or a "filter", iteratively learn those patterns. Custom neural networks generally, in the real-world, involve far more hyper-parameters during their training, and thus, tuning them is computationally much heavier than those prebuilt surrogate models. However, bad hyper-parameters could also increase the resulting error rate of the model \cite{metaheuristics-cookbook}. Therefore, a suitable metaheuristic search here comes with an important role to help determine the best set of hyper-parameters with fewer resources than an exhaustive search. Figure~\ref{fig:cnn_arch} summarizes the CNN backbone used in our experiments.
 
 \begin{figure}[ht]
 \centering
@@ -143,7 +143,8 @@ Based on searched results, our models are evaluated based on a multi-objective f
 
 We identified an order of importance for each metric by its relative weight in the function.
 
-\paragraph{Macro F1} The recall measures the fraction of a class's true positives over all samples that are in reality positive, i.e., \( \frac{TP}{TP + FN} \). The precision measures the fraction of true positives over all samples that are labeled positive in the dataset, i.e., \( \frac{TP}{TP + FP} \). By balancing the pros and cons of the precision-recall dilemma, a macro F1 score, denoted by \( \frac{\sum_{i=1}^{N} F1_i}{N} \) from N classes, is believed to be the best and the most important metric. The formula suggests it as an unweighted mean each class's F1 score. It helps penalizing poor performances on any class and avoid over-focusing on well performing ones. This is how it combines both precision and recall for each class, by giving equal importance to each class's performance.
+\paragraph{Macro F1}
+Macro F1 is selected as the dominant term of the composite fitness because it enforces class-wise fairness during hyperparameter optimization. Unlike accuracy or micro-averaged metrics that can be inflated by majority-class performance, Macro F1 computes the unweighted mean of each class’s F1 score, ensuring that every class contributes equally to the objective. This prevents the search process from converging to solutions that perform well only on frequent or easy classes while neglecting minority or harder classes. Since F1 already balances precision and recall through a harmonic mean, its macro-averaged form provides the strongest and most stable signal for steering the optimizer toward models that maintain consistent predictive quality across the entire label distribution.
 
 \paragraph{Precision-Recall} Thereafter, precision and recall ranks right after the macro F1 score in importance. While the precision informs us how many samples are labeled positive, it is more important to know, how many of them are truly correctly classified, and therefore, we assign a slightly above weight to the recall rather than the precision. 
 
@@ -189,14 +190,14 @@ Micro Metric
 
 \subsubsection{Stochasticity} To account for stochasticity, we perform $N = 10$ independent runs for each optimizer-model.
 
-\subsubsection{Metrics}
+\subsubsection{Evaluation Metrics}
 
 We will collect:
 
 \begin{itemize}
-    \item{Effectiveness:} The distribution (mean, median, best, worst) of the final fitness score achieved across 10 runs.
-    \item{Convergence:} The convergence trace (improvement over evaluations) for each run.
-    \item{Stability:} The variance of the final fitness scores across the 10 runs.
+    \item{\textbf{Effectiveness}:} The distribution (mean, median, best, worst) of the final fitness score achieved across 10 runs.
+    \item{\textbf{Convergence}:} The convergence trace (improvement over evaluations) for each run.
+    \item{\textbf{Stability}:} The variance of the final fitness scores across the 10 runs.
 \end{itemize}
 
 \subsubsection{Analysis}
