@@ -9,11 +9,20 @@ To answer RQ1, we analyzed the final fitness scores and the convergence behavior
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{./figures/convergence.png}
-    \caption{Convergence behavior of GA, PSO, and RS across 50 evaluations for all three models.}
+    \caption{Best fitness convergence behavior of GA, PSO, and RS across 50 evaluations for all three models.}
     \label{fig:convergence}
 \end{figure}
 
 For the \textbf{Decision Tree} and \textbf{KNN}, the search space was relatively small. Consequently, all three optimizers rapidly converged to near-identical optimal configurations. As shown in the final test performance (Figure \ref{fig:test_perf}), the DT achieved a fitness of $\approx 0.3384$, while the KNN achieved $\approx 0.4308$.
+
+We have also plotted the mean and standard deviation of the current fitness for each $n$ evaluations for each optimizer. As shown in Figure \ref{fig:evaluations}, the current fitness is generally improving over the evaluations, though with varying efficiency.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{./figures/evaluations.png}
+    \caption{Current fitness behavior of GA, PSO, and RS across 50 evaluations for all three models.}
+    \label{fig:evaluations}
+\end{figure}
 
 For the \textbf{CNN}, which possesses the largest and most complex search space, we observed distinct behaviors. While GA (orange line in Figure \ref{fig:convergence}) started with lower fitness, it showed steady improvement. Random Search (RS), surprisingly, started with high fitness in several runs, likely due to the efficacy of random sampling in high-dimensional spaces where few parameters dominate performance. Ultimately, all algorithms converged to a test performance of approximately $0.77$ (Figure \ref{fig:test_perf}).
 
@@ -66,3 +75,5 @@ The analysis reveals:
     \item \textbf{Near Significance (KNN):} PSO vs RS on KNN is $p=0.094$, hinting PSO may modestly outperform RS, but it does not reach $\alpha=0.05$.
     \item \textbf{Memetic Variants:} GA-Memetic comparisons (vs GA-Standard, PSO, RS) are all non-significant ($p > 0.05$), showing no measurable improvement over the standard GA under our budget.
 \end{itemize}
+
+Given the GA population size of $30$ and the strict budget of $50$ evaluations, the algorithm is structurally capped at fewer than three full generations: $30$ evaluations are spent on initialization, leaving only $20$ offspring evaluations (about $0.67$ of a generation). Roughly $60\%$ of the budget is therefore consumed by warm-up sampling, so the GA behaves similarly to Random Search under this constraint. This limited evolutionary pressure helps explain the non-significant differences in Table \ref{tab:wilcoxon}, as crossover and mutation had too few iterations to drive convergence.
