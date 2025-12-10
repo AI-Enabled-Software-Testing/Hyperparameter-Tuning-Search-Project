@@ -839,11 +839,7 @@ def main(experiment: str = None, diagnose_pso: bool | str = None) -> None:
         optimizers_comparison_dir.mkdir(parents=True, exist_ok=True)
         all_experiments_comparison_path = optimizers_comparison_dir / f"all_experiments_{current_model}.png"
         
-        if not os.path.exists(all_experiments_comparison_path):
-            try:
-                plot_all_experiments_comparison(current_model, all_experiments_comparison_path)
-            except Exception as e:
-                print(f"Could not generate all experiments comparison: {e}")
+        plot_all_experiments_comparison(current_model, all_experiments_comparison_path)
     
     # Run PSO diagnostics if requested
     if args.diagnose_pso:
