@@ -1,0 +1,7 @@
+\section{Limitations}
+
+\paragraph{Insufficient Evolutionary Iterations.} The fixed evaluation budget ($50$) relative to the population size ($30$) restricted the Genetic Algorithm to fewer than optimal generations. Consequently, 60\% of the budget was consumed by initial random sampling, leaving insufficient evaluations for crossover, mutation, and selection to drive convergence.
+
+\paragraph{Statistical Power.} With $10$ independent runs per configuration, the Wilcoxon signed-rank test had limited power to detect small but consistent performance differences between algorithms.
+
+\paragraph{Scope Validity.} Experiments were conducted only on grayscale CIFAR-10 with defined hyperparameter spaces. Results may not generalize to higher-dimensional spaces (e.g., RGB images or deeper architectures) where exploration-exploitation trade-offs could differ.

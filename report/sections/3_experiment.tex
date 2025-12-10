@@ -4,87 +4,202 @@
 
 \subsubsection{Dataset}
 
-We use a grayscale version of CIFAR-10~\cite{krizhevsky2009learning}. RGB images ($32 \times 32$ pixels) are converted to grayscale using $Y = 0.2125R + 0.7154G + 0.0721B$ and normalized to $[0, 1]$.
+The CIFAR-10 dataset~\cite{krizhevsky2009learning} is a dataset for object recognition. It consists of \( 32 \times 32 \) colored images. There are 60000 images in total. Those images are in 10 balanced classes (so we do not need to worry about class imbalance issues). 
+
+\paragraph{Preprocessing} We use a grayscale version of CIFAR-10. Those RGB images ($32 \times 32$ pixels) are converted to grayscale using $Y = 0.2125R + 0.7154G + 0.0721B$ and normalized to $[0, 1]$.
 
 \subsubsection{Data Split}
 
 \begin{itemize}
-    \item Training Set: 40,000 images.
-    \item Validation Set: 10,000 images (used only for HPO fitness evaluation).
+    \item Training Set: 45,000 images
+    \item Validation Set: 5,000 images (for HPO fitness evaluation).
     \item Test Set: 10,000 images (held out for final model evaluation after HPO is complete).
 \end{itemize} 
 
 \subsubsection{Models}
 
-\begin{itemize}
-    \item Decision Tree (DT)
-    \item K-Nearest Neighbors (KNN)
-    \item Convolutional Neural Network (CNN)
-\end{itemize}
+In our study, we aim to cover the following machine learning models:
 
-\clearpage
+\paragraph{Decision Tree (DT)} DT is the simplest model in nature. It is tree-based which suggests making predictions based on binary predicates. Its architecture is not complex for training and it is also highly explainable to non-technical persons. It is also widely used in real-world production-grade systems like autonomous vehicles \cite{autonomous-vehicle-appl}. Given its simplicity and popularity, we start our analysis on exploring what parameters minimally have to be tuned for the simplest model, and how it performs during tuning with metaheuristics. For simplicity, a prebuilt structure from \cite{dt-scikit} is used.
+
+\paragraph{K-Nearest Neighbors (KNN)} We ultilize \textit{KNeighborsClassifier} from \cite{knn-scikit} which predicts based on the class of a nearest neighbor among existing data instances. From the perspective of explainability, a prior work \cite{mygithub-drugconsumpML} suggests that, depending on datasets, sometimes a KNN classifier could be linear-based, but in the case of an image dataset, KNN in our experiment are predicting from highly dimensional image arrays, whose predictions need to be generalized by a kernel-based explainer. The model's architecture itself is not complex but the dataset involved could be a bit heavier training task. We used it as an alternative type in our experiment.
+
+\paragraph{Convolutional Neural Network (CNN)} While the above models might exhibit a simpler architecture, CNN, on the other hand, is a common deep learning architecture in practical works, which helps learning image recognition tasks more efficiently. It is a fully-connected 3-layered neural network with batch normalization, which takes operations known as "convolutions". Each of which utilizes a subset of pixels, known as a "kernel", or a "filter", iteratively learn those patterns. Custom neural networks generally, in the real-world, involve far more hyper-parameters during their training, and thus, tuning them is computationally much heavier than those prebuilt surrogate models. However, bad hyper-parameters could also increase the resulting error rate of the model \cite{metaheuristics-cookbook}. Therefore, a suitable metaheuristic search here comes with an important role to help determine the best set of hyper-parameters with fewer resources than an exhaustive search. Figure~\ref{fig:cnn_arch} summarizes the CNN backbone used in our experiments.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+    node distance=0.6cm,
+    conv/.style={draw=black, align=center, font=\scriptsize},
+    norm/.style={draw=black, align=center, font=\scriptsize},
+    act/.style={draw=black, align=center, font=\scriptsize},
+    pool/.style={draw=black, align=center, fill=gray!10, font=\scriptsize},
+    linear/.style={draw=black, align=center, rounded corners, font=\scriptsize},
+    arrow/.style={->, thick, >=stealth},
+]
+    % Block 1
+    \node[conv] (conv1) {Conv2d\\$1 \to 16$\\$k=k, s=s$};
+    \node[norm, right=0.3cm of conv1] (bn1) {BN};
+    \node[act, right=0.3cm of bn1] (relu1) {ReLU};
+    \node[pool, right=0.3cm of relu1] (pool1) {MaxPool\\$2 \times 2$};
+    
+    % Block 2
+    \node[conv, below=1.2cm of conv1] (conv2) {Conv2d\\$16 \to 32$\\$k=k, s=s$};
+    \node[norm, right=0.3cm of conv2] (bn2) {BN};
+    \node[act, right=0.3cm of bn2] (relu2) {ReLU};
+    \node[pool, right=0.3cm of relu2] (pool2) {MaxPool\\$2 \times 2$};
+    
+    % Block 3
+    \node[conv, below=1.2cm of conv2] (conv3) {Conv2d\\$32 \to 64$\\$k=k, s=s$};
+    \node[norm, right=0.3cm of conv3] (bn3) {BN};
+    \node[act, right=0.3cm of bn3] (relu3) {ReLU};
+    \node[pool, right=0.3cm of relu3] (pool3) {AdaptAvg\\$\to 1 \times 1$};
+    
+    % Classifier
+    \node[linear, below=1.2cm of conv3] (fc) {Linear\\$64 \to 10$};
+    
+    % Connections
+    \draw[arrow] (conv1) -- (bn1);
+    \draw[arrow] (bn1) -- (relu1);
+    \draw[arrow] (relu1) -- (pool1);
+    
+    \draw[arrow] (conv2) -- (bn2);
+    \draw[arrow] (bn2) -- (relu2);
+    \draw[arrow] (relu2) -- (pool2);
+    
+    \draw[arrow] (conv3) -- (bn3);
+    \draw[arrow] (bn3) -- (relu3);
+    \draw[arrow] (relu3) -- (pool3);
+    
+    % Inter-block connections
+    \draw[arrow] (pool1.south) -- (conv2.north);
+    \draw[arrow] (pool2.south) -- (conv3.north);
+    \draw[arrow] (pool3.south) -- (fc.north);
+    
+    % Input/Output
+    \node[left=0.5cm of conv1, align=center, font=\scriptsize] (input) {Input\\$32 \times 32 \times 1$};
+    \draw[arrow] (input) -- (conv1);
+    
+    \node[right=0.5cm of fc, align=center, font=\scriptsize] (output) {Output\\10 classes};
+    \draw[arrow] (fc) -- (output);
+\end{tikzpicture}
+\caption{CNN Architecture. Note: $k$ (kernel size) and $s$ (stride) are optimized hyperparameters.}
+\label{fig:cnn_arch}
+\end{figure}
+
+\paragraph{Significance of CNN} From several existing works, an HPO problem for CNN models specifically is consistently treated as a combinatorial optimization problem, and metaheuristics are used to efficiently navigate the massive search space that grid search or manual tuning can hardly handle. A study \cite{metaheuristics-cookbook} applies Memetic Algorithms (MA) and Simulated Annealing (SA) to CNN architectures, using binary-encoded layers and fitness functions combining loss and accuracy, showing these metaheuristics outperform Random Search and Genetic Algorithms on common datasets like MNIST and CIFAR-10 by achieving near–state-of-the-art accuracy with far fewer evaluations. Another study \cite{cnn-explained-for-metaheuristics}, on the other hand, highlights Genetic Algorithms (GA) and a swarm-based Grey Wolf Optimization (GWO) as effective tuning strategies, demonstrating that metaheuristics reliably improve deep model performance—including CNNs—over brute-force grid search across multiple biomedical datasets. Furthermore, a comprehensive CNN-optimization review \cite{hpo-experiment-on-cnn} showcases the broad popularity of metaheuristics across CNN research, documenting a wide range of methods - PSO, Manta Ray Foraging Optimization, Reptile Search, Hybrid Wolf-Crow Optimization, and many others - successfully used to tune complicated CNN architectures, including common parameters namely learning rates and layer sizes across diverse computer-vision tasks such as melanoma detection and plant disease identification. As a summary, these works demonstrate that CNNs are the dominant deep-learning model receiving metaheuristic attention, and metaheuristic optimization has become a mainstream strategy for boosting CNN performance due to its flexibility, efficiency, and strong empirical results.
+
+
 \subsection{Hyperparameter Search Space}
 
-Table \ref{tab:hparam_space} defines the hyperparameter search space used by all three models.
+Table \ref{tab:hparam_space} defines the hyperparameter search space derived from the code implementation.
 
 \begin{table}[htbp]
 \centering
 \caption{Hyperparameter Search Space Definition}
 \label{tab:hparam_space}
 \small
-\begin{tabularx}{\textwidth}{llllX}
+\begin{tabularx}{\textwidth}{lll p{0.2\textwidth} X}
 \toprule
-\textbf{Model} & \textbf{Hyperparameter} & \textbf{Type} & \textbf{Range} & \textbf{Justification \& Citation} \\
+\textbf{Model} & \textbf{Hyperparameter} & \textbf{Type} & \textbf{Range} & \textbf{Description} \\
 \midrule
-\multirow{4}{*}{DT} & criterion & Categorical & \texttt{['gini', 'entropy']} & Standard impurity measures for split quality. \\
+\multirow{4}{*}{DT} 
+ & criterion & Categorical & \texttt{['gini', 'entropy']} & Impurity measure. \\
 \cmidrule{2-5}
- & max\_depth & Integer & \texttt{[3, 20]} & Controls tree depth to balance bias/variance. \\
+ & max\_depth & Integer & \texttt{[3, 20]} & Max tree depth. \\
 \cmidrule{2-5}
- & min\_samples\_split & Integer & \texttt{[2, 20]} & Regularization: min samples required to split a node. \\
+ & min\_samples\_split & Integer & \texttt{[2, 20]} & Min samples to split node. \\
 \cmidrule{2-5}
- & min\_samples\_leaf & Integer & \texttt{[1, 10]} & Regularization: min samples required for a leaf node. \\
+ & min\_samples\_leaf & Integer & \texttt{[1, 10]} & Min samples at leaf. \\
 \midrule
-\multirow{3}{*}{KNN} & n\_neighbors & Integer & \texttt{[3, 15]} & Number of neighbors; odd range to prevent ties. \\
+\multirow{3}{*}{KNN} 
+ & n\_neighbors & Integer & \texttt{[3, 30]} & Number of neighbors ($k$). \\
 \cmidrule{2-5}
- & weights & Categorical & \texttt{['uniform', 'distance']} & Weighting function for neighbors ('distance' gives more weight to closer points). \\
+ & weights & Categorical & \texttt{['uniform', 'distance']} & Weight function. \\
 \cmidrule{2-5}
- & metric & Categorical & \texttt{['minkowski', 'manhattan']} & Distance metric (e.g., L2/Euclidean vs. L1/Manhattan). \\
+ & metric & Categorical & \texttt{['minkowski', 'manhattan', 'euclidean', 'chebyshev']} & Distance metric. \\
 \midrule
-\multirow{6}{*}{CNN} & learning\_rate & Float (Log) & \texttt{[1e-5, 1e-2]} & Most critical HP; controls optimizer step size. \\
+\multirow{6}{*}{CNN} 
+ & learning\_rate & Float (Log) & \texttt{[1e-5, 1e-2]} & Step size (log-scale). \\
 \cmidrule{2-5}
- & batch\_size & Categorical & \texttt{[16, 32, 64, 128]} & Trade-off between gradient stability and memory/speed. \\
+ & batch\_size & Categorical & \texttt{[16, 32, 64, 128]} & Samples per gradient update. \\
 \cmidrule{2-5}
- & optimizer & Categorical & \texttt{['AdamW', 'SGD']} & Compares modern adaptive (AdamW) vs. classical (SGD) optimizers. \\
+ & optimizer & Categorical & \texttt{['AdamW', 'SGD']} & Optimization algorithm. \\
 \cmidrule{2-5}
- & kernel\_size & Integer & \texttt{[3, 5]} & Size of the convolutional filter's receptive field. \\
+ & kernel\_size & Integer & \texttt{[3, 5]} & Filter size. \\
 \cmidrule{2-5}
- & stride & Integer & \texttt{[1, 3]} & Step size of convolution; reduces spatial dimension. \\
+ & stride & Integer & \texttt{[1, 3]} & Convolution step size. \\
 \cmidrule{2-5}
- & weight\_decay & Float & \texttt{[0.0, 0.01]} & L2 regularization parameter to prevent overfitting. \\
+ & weight\_decay & Float & \texttt{[0.0, 0.01]} & L2 Regularization. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-TODO: composite fitness function + table with justitifcation
+\subsection{Composite Fitness} 
+
+Based on searched results, our models are evaluated based on a multi-objective fitness function, which composes of a weighted sum of common metrics for machine learning models. Those weights define how important those metrics are within our evaluation. See table \ref{tab:composite_fitness_weights}.
+
+\subsubsection{Justification} 
+
+We identified an order of importance for each metric by its relative weight in the function.
+
+\paragraph{Macro F1}
+Macro F1 is selected as the dominant term of the composite fitness because it enforces class-wise fairness during hyperparameter optimization. Unlike accuracy or micro-averaged metrics that can be inflated by majority-class performance, Macro F1 computes the unweighted mean of each class’s F1 score, ensuring that every class contributes equally to the objective. This prevents the search process from converging to solutions that perform well only on frequent or easy classes while neglecting minority or harder classes. Since F1 already balances precision and recall through a harmonic mean, its macro-averaged form provides the strongest and most stable signal for steering the optimizer toward models that maintain consistent predictive quality across the entire label distribution.
+
+\paragraph{Precision-Recall} Thereafter, precision and recall ranks right after the macro F1 score in importance. While the precision informs us how many samples are labeled positive, it is more important to know, how many of them are truly correctly classified, and therefore, we assign a slightly above weight to the recall rather than the precision. 
+
+\paragraph{ROC-AUC} The Receiver-Operating-Characteristic (ROC) Area-Under-the-Curve (AUC), is a measure concerning the fraction between true positive rates and false positive rates, by calculating the area bounded by a curve. It is relative to the score of a random classifier, 0.5. Of course, we aim to find whether a model, with respect to a particular set of hyper-parameters, could identify at least all truly positive instances correctly. At the same time, in our problem, we put less concern on whether those instances with positive labels (in the dataset) are misclassified. We keep its weight below macro F1 because AUC tends to be relative, which could sometimes be overly optimistic. We also need to note that, the CIFAR-10 dataset~\cite{krizhevsky2009learning} shows a one-versus-rest problem, where each time we consider a target class over all others. Since the AUC score still indicates overall separability of classes, ensuring no class dominance from the comparison, it ranks slightly more important than the precision but less important than the macro F1 score.
+
+\paragraph{Accuracy} Accuracy is the simplest metric, which only measures the proportion of correctly classified samples (regardless of their labels) over the entire dataset. Thus, it might be too naive to inform us the insights that we could tell from other metrics.
+
+\paragraph{Micro F1} As suggested by the formula of the macro F1 score above, micro F1 is just considering the precision-recall balance within 1 class. The dataset that we are in consideration consists of 10, relatively large number of classes, and so, this could even be more naive and redundant in the above macro F1's consideration.
+
+\begin{table}[htbp]
+\centering
+\caption{Composite Fitness – Weights Composition}
+\label{tab:composite_fitness_weights}
+\small
+\begin{tabularx}{\textwidth}{lllX}
+\toprule
+\textbf{Metric Category} & \textbf{Metric} & \textbf{Weight} & \textbf{Notes} \\
+\midrule
+
+\multirow{3}{*}{Macro Metrics}
+    & F1 (Macro) & 30\% & Emphasizes balanced performance across all classes. \\
+\cmidrule{2-4}
+    & Recall (Macro) & 20\% & Rewards models that capture minority classes. \\
+\cmidrule{2-4}
+    & Precision (Macro) & 15\% & Penalizes false positives uniformly across classes. \\
+\midrule
+
+\multirow{2}{*}{Global Metrics}
+    & ROC-AUC & 20\% & Measures ranking quality across thresholds. \\
+\cmidrule{2-4}
+    & Accuracy & 10\% & Overall correctness; kept low to avoid bias toward majority class. \\
+\midrule
+
+Micro Metric
+    & F1 (Micro) & 5\% & Aggregates contributions of all classes. \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \subsubsection{Evaluation and Analysis}
 
-\subsubsection{Search Budget} Each HPO run is allocated a fixxed budget of 50 fitness evaluations.
+\subsubsection{Search Budget} Each HPO run is allocated a fixed budget of 50 fitness evaluations.
 
 \subsubsection{Stochasticity} To account for stochasticity, we perform $N = 10$ independent runs for each optimizer-model.
 
-\subsubsection{Metrics}
+\subsubsection{Evaluation Metrics}
 
 We will collect:
 
 \begin{itemize}
-    \item{Effectiveness:} The distribution (mean, median, best, worst) of the final fitnness score achieved across 10 runs.
-    \item{Efficiency:} The convergence trace and total wall-clock execution time for each run.
-    \item{Stability:} The variance of the final fitness scores across the 10 runs.
+    \item{\textbf{Effectiveness}:} The distribution (mean, median, best, worst) of the final fitness score achieved across 10 runs.
+    \item{\textbf{Convergence}:} The convergence trace (improvement over evaluations) for each run.
+    \item{\textbf{Stability}:} The variance of the final fitness scores across the 10 runs.
 \end{itemize}
 
 \subsubsection{Analysis}
 
-We will apply non-parametric statistical tests with a significance level of $\alpha = 0.05$ to compare the performance of the optimizers.
-
-TODO: Figure out the tests to use.
+Performance differences are assessed qualitatively via convergence plots (search trajectory) and box plots (solution stability across runs). For quantitative comparison, we apply the Wilcoxon signed-rank test ($\alpha=0.05$, non-parametric) to determine if observed differences are significant. The null hypothesis is that the median performance difference between any two optimizers is zero.
