@@ -21,10 +21,3 @@ dependencies = [
 dev = [
     "ruff>=0.14.1",
 ]
-
-[tool.setuptools]
-packages = [
-    "framework",
-    "models",
-    "search"
-]
