@@ -1,8 +1,8 @@
 \section{Limitations}
 
-\paragraph{Insufficient Evolutionary Iterations.} The primary threat to validity is the interaction between the population size ($P=30$) and the fixed evaluation budget ($B=50$). This ratio mathematically restricted the Genetic Algorithm to fewer than two full generations ($N_{gen} \approx 1.67$). Consequently, 60\% of the computational budget was consumed by the random initialization phase (Generation 0), leaving insufficient iterations for the metaheuristic mechanisms (crossover, mutation, and selection) to drive convergence away from the initial random distribution.
+\paragraph{Insufficient Evolutionary Iterations.} The fixed evaluation budget ($B=50$) relative to the population size ($P=30$) restricted the Genetic Algorithm to fewer than two full generations. Consequently, 60\% of the budget was consumed by initial random sampling, leaving insufficient evaluations for crossover, mutation, and selection to drive convergence.
 
-\paragraph{Statistical Power.} The experiment utilized $N=10$ independent runs per optimizer-model pair. While standard for exploratory HPO studies, this sample size limits the statistical power of the Wilcoxon signed-rank test, potentially masking small but consistent effect sizes between the algorithms.
+\paragraph{Statistical Power.} With $N=10$ independent runs per configuration, the Wilcoxon signed-rank test had limited power to detect small but consistent performance differences between algorithms.
 
-\paragraph{Scope Validity.} The evaluation was restricted to grayscale CIFAR-10 and fixed hyperparameter search spaces. These results may not generalize to higher-dimensional search spaces (e.g., full RGB imagery or deeper architectures) where the "curse of dimensionality" might differentiate global search strategies (GA) from local ones (PSO) more effectively.
+\paragraph{Scope Validity.} Experiments were conducted only on grayscale CIFAR-10 with defined hyperparameter spaces. Results may not generalize to higher-dimensional spaces (e.g., RGB images or deeper architectures) where exploration-exploitation trade-offs could differ.
 

@@ -201,8 +201,4 @@ We will collect:
 
 \subsubsection{Analysis}
 
-To evaluate the performance differences between the optimizers, we will employ both qualitative and quantitative analysis methods.
-
-Qualitatively, we inspect the convergence plots to understand the search trajectory and efficiency of each algorithm over the 50 generations. We will also utilize box plots to visualize the spread of the final fitness values, allowing us to assess the stability and variance of the solutions found across the 10 independent runs.
-
-Quantitatively, we will perform statistical hypothesis testing to determine if observed differences in performance are significant or merely due to random chance. Since the distribution of fitness scores is not guaranteed to be normal, we will opt for the \textbf{Wilcoxon signed-rank test}, a non-parametric pairwise comparison test. We will define our significance level at $\alpha = 0.05$. The null hypothesis ($H_0$) states that the median difference between pairs of observations from two optimizers is zero (i.e., they perform equally).
+Performance differences are assessed qualitatively via convergence plots (search trajectory) and box plots (solution stability across runs). For quantitative comparison, we apply the Wilcoxon signed-rank test ($\alpha=0.05$, non-parametric) to determine if observed differences are significant. The null hypothesis is that the median performance difference between any two optimizers is zero.

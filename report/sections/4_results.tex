@@ -4,7 +4,7 @@ This section presents the empirical findings from the 10 independent runs of eac
 
 \subsection{RQ1: Effectiveness and Convergence}
 
-To answer RQ1, we analyzed the final fitness scores and the convergence behavior of each optimizer. As illustrated in Figure \ref{fig:convergence}, all three optimizers demonstrated the ability to improve solutions over the generations, though with varying efficiency.
+All optimizers improved solutions over 50 evaluations, but convergence efficiency varied by model (Figure \ref{fig:convergence}). For DT and KNN, which have relatively small search spaces, GA, PSO, and RS converged rapidly to near-identical optimal configurations. Their final fitness scores were approximately 0.3384 and 0.4308, respectively (Figure \ref{fig:test_perf}).
 
 \begin{figure}[H]
     \centering
@@ -13,18 +13,7 @@ To answer RQ1, we analyzed the final fitness scores and the convergence behavior
     \label{fig:convergence}
 \end{figure}
 
-For the \textbf{Decision Tree} and \textbf{KNN}, the search space was relatively small. Consequently, all three optimizers rapidly converged to near-identical optimal configurations. As shown in the final test performance (Figure \ref{fig:test_perf}), the DT achieved a fitness of $\approx 0.3384$, while the KNN achieved $\approx 0.4308$.
-
-We have also plotted the mean and standard deviation of the current fitness for each $n$ evaluations for each optimizer. The curves are smoothed for readability (with a smoothing factor of 0.5), while the shaded regions reflect the underlying variation. As shown in Figure \ref{fig:evaluations}, the current fitness is generally improving over the evaluations, though with varying efficiency.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{./figures/evaluations.png}
-    \caption{Current fitness behavior of GA, PSO, and RS across 50 evaluations for all three models.}
-    \label{fig:evaluations}
-\end{figure}
-
-For the \textbf{CNN}, which possesses the largest and most complex search space, we observed distinct behaviors. While GA (orange line in Figure \ref{fig:convergence}) started with lower fitness, it showed steady improvement. Random Search (RS), surprisingly, started with high fitness in several runs, likely due to the efficacy of random sampling in high-dimensional spaces where few parameters dominate performance. Ultimately, all algorithms converged to a test performance of approximately $0.77$ (Figure \ref{fig:test_perf}).
+For the more complex CNN, GA showed steady improvement from a lower initial fitness, while RS occasionally found high-fitness configurations early (Figure \ref{fig:convergence}). All optimizers converged to a similar final performance of approximately 0.77 (Figure \ref{fig:test_perf}).
 
 \begin{figure}[H]
     \centering
@@ -35,7 +24,7 @@ For the \textbf{CNN}, which possesses the largest and most complex search space,
 
 \subsection{RQ2: Stability}
 
-Stability was measured by the standard deviation of the final fitness scores across the 10 runs, visualized in the box plots in Figure \ref{fig:boxplot}.
+The stability of final solutions, shown by box plots of fitness across 10 runs (Figure \ref{fig:boxplot}), was high for all models. Variance was minimal for DT and KNN. For CNN, all optimizers produced similar interquartile ranges (approximately 0.79 to 0.83), with minor differences in outlier counts (GA: 1, PSO: 2, RS: 1).
 
 \begin{figure}[H]
     \centering
@@ -44,11 +33,9 @@ Stability was measured by the standard deviation of the final fitness scores acr
     \label{fig:boxplot}
 \end{figure}
 
-The box plots provide a nuanced view of the stability for each model. For the \textbf{CNN}, the distributions are quite similar across optimizers, with whiskers generally falling within the $0.79-0.83$ range. In terms of outliers, GA and RS each exhibit one, while PSO displays two. For the \textbf{Decision Tree (DT)}, Random Search (RS) shows the largest interquartile range and a significant lower whisker; however, the overall variance remains small given the scale ($0.3415-0.3440$). The metaheuristics are more packed at the upper end, though GA includes two outliers, and PSO has a lower whisker extending to approximately $0.34225$. Finally, for the \textbf{KNN}, no outliers are observed for any of the optimizers.
-
 \subsection{Statistical Significance}
 
-We performed the \textbf{Wilcoxon signed-rank test} to determine if there were statistically significant differences between the optimizers. The results are summarized in Table \ref{tab:wilcoxon}.
+Wilcoxon signed-rank tests showed no significant performance differences between any optimizer pairs across all models (p > 0.05; Table \ref{tab:wilcoxon}). The nearest to significance was PSO versus RS on KNN (p = 0.094). The memetic GA variant also showed no improvement over the standard GA.
 
 \begin{table}[H]
 \centering
@@ -67,13 +54,3 @@ GA-Memetic vs RS & -- & 0.432 & 0.688 \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-The analysis reveals:
-\begin{itemize}
-    \item \textbf{No Significant Differences:} All pairwise comparisons yield $p > 0.05$, so we fail to reject the null hypothesis across models.
-    \item \textbf{Identical Performance (DT):} GA-Standard vs PSO remains $p=1.000$, indicating indistinguishable outcomes on Decision Trees.
-    \item \textbf{Near Significance (KNN):} PSO vs RS on KNN is $p=0.094$, hinting PSO may modestly outperform RS, but it does not reach $\alpha=0.05$.
-    \item \textbf{Memetic Variants:} GA-Memetic comparisons (vs GA-Standard, PSO, RS) are all non-significant ($p > 0.05$), showing no measurable improvement over the standard GA under our budget.
-\end{itemize}
-
-Given the GA population size of $30$ and the strict budget of $50$ evaluations, the algorithm is structurally capped at fewer than three full generations: $30$ evaluations are spent on initialization, leaving only $20$ offspring evaluations (about $0.67$ of a generation). Roughly $60\%$ of the budget is therefore consumed by warm-up sampling, so GA behaves similarly to Random Search under this constraint. PSO faces the same tight budget and likewise does not clear a statistically meaningful advantage. Under such sub-$2\times$-population budgets, Random Search is effectively superior because it pays no population-initialization overhead. The value of GA (and possibly PSO) would likely emerge only with larger budgets that permit 10+ generations, where exploitation phases can amortize their startup cost.

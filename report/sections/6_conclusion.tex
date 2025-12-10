@@ -1,18 +1,15 @@
 \section{Conclusion}
 
-This study compared metaheuristic optimizers (GA, PSO) against a Randomized Search (RS) baseline under a strict computational budget. Statistical testing confirmed that GA and PSO failed to significantly outperform RS for any of the tested Decision Tree, KNN, or CNN models (p > 0.05). All optimizers converged to statistically indistinguishable fitness plateaus.
+This study evaluated metaheuristic optimizers (GA, PSO) against a Randomized Search baseline under a strict budget of 50 evaluations. No significant performance difference was found between methods across Decision Tree, KNN, or CNN models ($p > 0.05$), with all reaching similar fitness plateaus.
 
-This null result is attributed to the initialization overhead of population-based methods within a micro-budget regime. The geneetic algorithms for example, expended 60\% of their budget on the initial random population, leaving insufficient evaluations for evolutionary operators to amortize this cost and drive meaningful improvement.
+The result is explained by initialization overhead: with a population of 30, GA used 60\% of its budget on initial sampling, leaving too few evaluations for evolutionary operators to yield improvement. In such micro-budget regimes (budget $< 2 \times$ population), population-based methods behave similarly to Random Search.
 
-First, \textbf{metaheuristics failed to outperform the baseline.} Statistical testing confirmed no significant difference in final solution quality between GA, PSO, and RS across Decision Tree, KNN, or CNN architectures ($p > 0.05$). All methods converged to statistically indistinguishable fitness plateaus (e.g., $\approx 0.77$ for CNN).
-
-We conclude that for micro-budget HPO tasks, where the total evaluation budget is not substantially larger than the population size, the added complexity of metaheuristics is unjustified. In such scenarios, Randomized Search can potentially be a more effective strategy.
+Therefore, for hyperparameter optimization with very limited evaluations, the added complexity of metaheuristics like GA and PSO is not justified. Random Search proved equally effective baseline under these constraints.
 
 Future work should:
-
 \begin{itemize}
-    \item Extend evaluation budgets to observe whether GA/PSO advantages emerge once initialization overhead is amortized.
-    \item Test budget-aware variants in order to shrink startup cost under tight budgets.
-    \item Replicate on different datasets and larger hyperparameter spaces to assess generality.
-    \item Increase run counts to raise test power.
+    \item Increase evaluation budgets to allow amortization of initialization costs.
+    \item Explore adaptive or budget-aware variants of GA and PSO.
+    \item Extend experiments to broader datasets and hyperparameter spaces.
+    \item Use larger run counts to improve statistical power.
 \end{itemize}
