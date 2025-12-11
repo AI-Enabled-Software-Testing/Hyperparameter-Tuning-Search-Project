@@ -82,8 +82,39 @@ This is a [summary](./report/CSI5186_AI_Testing_Project_Report___Fernando__Kelvi
    ```
 
 ## Execution Guide
-### Data Preparation
-1. Run `data_download.py` to firstly download the datasets needed. 
+
+### Complete Pipeline (Recommended)
+Run the complete pipeline from data preparation through experiments to final training:
+
+```bash
+# Run all models with all optimizers
+python main.py
+
+# Run specific model with all optimizers
+python main.py --model dt
+
+# Run specific model with specific optimizer
+python main.py --model cnn --optimizer rs
+
+# Force re-download and re-process datasets
+python main.py --force
+```
+
+**Available arguments:**
+- `--model`: Model to run - `["dt", "knn", "cnn"]`. If omitted, runs all models.
+- `--optimizer`: Optimizer to use - `["rs", "ga-standard", "ga-memetic", "pso"]`. If omitted, runs all optimizers for each model.
+- `--force`: Force re-download and re-processing of datasets (default: False).
+
+**Pipeline stages:**
+1. **Data Download**: Automatically downloads CIFAR-10 dataset (if not present or with `--force`)
+2. **Data Processing**: Processes and prepares datasets (if not present or with `--force`)
+3. **Hyperparameter Search**: Runs experiments for specified model(s) and optimizer(s) combinations
+4. **Final Training**: Trains models with best-found hyperparameters on full dataset and evaluates on test set
+
+### Data Preparation (Manual)
+If you prefer to run data preparation separately:
+
+1. Run `data_download.py` to download the datasets needed. 
    * Note: Data are stored into the `.cache\` folder which is gitignored.
    * Note: Should you rerun the script again, and the folder already exists with contents, please run the script with argument `--force` to enable a smooth overwriting behavior. 
 2. Run `data_process.py` to process the images in the datasets. 
@@ -137,16 +168,16 @@ python hparam_search.py
 * It passes parameters directly to model creation/training; and so, it'll be less flexible for advanced training configs (e.g., custom epochs, patience).
 * It is intended for quick experiments, visualizations, and debugging with a single optimizer.
 
-### Run a Full Experiment
-* You can run a full hyperparameter search based on this script: 
+### Run a Full Experiment (Advanced)
+If you want more control over the experiment parameters, you can run experiments directly using this script: 
 ```bash
-python scripts/run_experiment.py
+python scripts/run_experiment.py --model dt
 ```
 **Available arguments:**
-- `--model`: Model Choices - `["dt", "knn", "cnn"]`, default `dt`. **Mandatory** Argument!!!
+- `--model`: Model Choices - `["dt", "knn", "cnn"]`. **Mandatory** argument!!!
+- `--optimizer`: Optimizer to use - `["rs", "ga-standard", "ga-memetic", "pso"]`. If omitted, runs all optimizers.
 - `--runs`: Number of independent runs - default 1.
-- `--trials`: Number of Evaluations - default 5.
-- `--evaluations`: Number of fitness evaluations per run - default 50
+- `--evaluations`: Number of fitness evaluations per run - default 50.
 - `--seed`: Base seed for randomization - default 42.
 - `--n-jobs`: Number of parallel workers - default 1 for a sequential run. Use -1 for all CPUs.
 
@@ -154,7 +185,24 @@ python scripts/run_experiment.py
 * All optimizers are supported and selectable via CLI.
 * It saves results, convergence traces, and summaries to disk for later analysis (but not on TensorBoard).
 * For CNN, it uses a TrainingConfig object for fine-grained control (learning rate, weight decay, optimizer, batch size, patience); and disables early stopping for CNN by default for fair comparison.
-* Given its flexibility and robustness, it is intended for benchmarking, comparison, and research—especially when comparing optimizer performanc.
+* Given its flexibility and robustness, it is intended for benchmarking, comparison, and research—especially when comparing optimizer performance.
+
+### Run Final Training (Advanced)
+After running experiments, you can run final training separately:
+```bash
+python scripts/run_final_training.py
+```
+**Available arguments:**
+- `--seed`: Seed for final training runs - default 42.
+- `--experiments`: Optional list of experiment names (e.g., `dt-rs`, `cnn-ga-standard`) to include. If omitted, trains all experiments found in `.cache/experiment/`.
+- `--max-parallel-cnn`: Maximum parallel CNN trainings - default 1.
+- `--max-parallel-classic`: Maximum parallel DT/KNN trainings - default 1.
+
+This script:
+- Loads best hyperparameters from each experiment's best run
+- Trains models on the full training set
+- Evaluates on the held-out test set
+- Saves trained models and results to `.cache/final_training/`
 
 ### Analyze Results
 Upon completion of an execution from the `run_experiment.py` script, you will likely get some folders under `.cache/experiment` folder. You can visualize plots for analysis based on this script: 
