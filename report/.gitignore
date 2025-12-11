@@ -12,6 +12,3 @@
 *.fdb_latexmk
 *.fls
 
-# PDF output (generated from .tex)
-*.pdf
-

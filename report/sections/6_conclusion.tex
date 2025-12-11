@@ -2,14 +2,16 @@
 
 This study evaluated metaheuristic optimizers (GA, PSO) against a Randomized Search baseline under a strict budget of 50 evaluations. No significant performance difference was found between methods across Decision Tree, KNN, or CNN models ($p > 0.05$), with all reaching similar fitness plateaus.
 
-The result is explained by initialization overhead: with a population of 30, GA used 60\% of its budget on initial sampling, leaving too few evaluations for evolutionary operators to yield improvement. In such micro-budget regimes (budget $< 2 \times$ population), population-based methods behave similarly to Random Search.
+\paragraph{Addressing the Limitation} The result is explained by initialization overhead: with a population of 30, GA used 60\% of its budget on initial sampling, leaving too few evaluations for evolutionary operators to yield improvement. In such micro-budget regimes (budget $< 2 \times$ population), population-based methods behave similarly to Random Search.
 
 Therefore, for hyperparameter optimization with very limited evaluations, the added complexity of metaheuristics like GA and PSO is not justified. Random Search proved equally effective baseline under these constraints.
 
 Future work should:
 \begin{itemize}
     \item Increase evaluation budgets to allow amortization of initialization costs.
-    \item Explore adaptive or budget-aware variants of GA and PSO.
+    \item Explore adaptive or budget-aware variants of GA and PSO \cite{hpo-experiment-on-cnn}.
     \item Extend experiments to broader datasets and hyperparameter spaces.
+    \item Design systematic testing on larger real-world datasets, to show the applicability and generalizability in real-world problems \cite{hpo-experiment-on-cnn}.
     \item Use larger run counts to improve statistical power.
+    \item Experiment hybrid metaheuristics or on hybrid-based models, like a CNN with \textit{XGBoost},  \cite{hpo-experiment-on-cnn}, combining the advantages and balancing the tradeoffs from traditional ones like PSO and GA.
 \end{itemize}
