@@ -349,9 +349,10 @@ class GeneticAlgorithm(Optimizer):
                         print(f"  -> Current params: {params}")
                     # Keep the search with less duration
                     existing_duration = next(
-                        item["duration_sec"]
+                        (item["duration_sec"]
                         for item in history
-                        if item["params"] == best_params
+                        if item["params"] == best_params),
+                        float('inf')  # Default to infinity if not found
                     )
                     if duration < existing_duration:
                         best_score = score
